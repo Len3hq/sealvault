@@ -1,5 +1,5 @@
 import { streamText, convertToModelMessages, stepCountIs } from "ai"
-import { anthropic } from "@ai-sdk/anthropic"
+import { openai } from "@ai-sdk/openai"
 import { buildReadTools, writeToolSchemas } from "@/lib/agent/tools"
 import { buildSystemPrompt } from "@/lib/agent/system-prompt"
 
@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   const readTools = buildReadTools(ownerAddress as string)
 
   const result = streamText({
-    model: anthropic("claude-opus-4-7"),
+    model: openai("gpt-4o-mini"),
     system: buildSystemPrompt(),
     messages: await convertToModelMessages(messages),
     tools: {

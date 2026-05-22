@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.79",
+    "@ai-sdk/openai": "^3.0.65",
     "@ai-sdk/react": "^3.0.192",
     "@arkiv-network/sdk": "latest",
     "@privy-io/react-auth": "^3.27.1",
