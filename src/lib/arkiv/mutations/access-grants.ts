@@ -1,7 +1,6 @@
 import { jsonToPayload } from "@arkiv-network/sdk"
 import type { Entity } from "@arkiv-network/sdk"
 import { buildAccessGrantEntity, buildGrantRecordEntity } from "../schemas"
-import { GRANT_STATUS } from "../constants"
 import type { GrantStatus } from "../constants"
 import type { WalletClient, BuildAccessGrantParams, BuildGrantRecordParams } from "../types"
 
@@ -18,7 +17,7 @@ export async function revokeAccessGrant(
   walletClient: WalletClient,
   grantEntityKey: string
 ): Promise<void> {
-  return walletClient.deleteEntity({ entityKey: grantEntityKey as `0x${string}` })
+  await walletClient.deleteEntity({ entityKey: grantEntityKey as `0x${string}` })
 }
 
 export async function extendAccessGrant(
@@ -26,7 +25,7 @@ export async function extendAccessGrant(
   grantEntityKey: string,
   additionalSeconds: number
 ): Promise<void> {
-  return walletClient.extendEntity({
+  await walletClient.extendEntity({
     entityKey: grantEntityKey as `0x${string}`,
     expiresIn: additionalSeconds,
   })

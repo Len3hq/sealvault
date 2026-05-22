@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { zodSchema } from "ai"
-import { z } from "zod"
 import { buildReadTools, writeToolSchemas } from "@/lib/agent/tools"
+import type { queryVaultItems as QueryFn } from "@/lib/arkiv/queries"
+
+type QueryResult = Awaited<ReturnType<typeof QueryFn>>
 
 // ─── Mock Arkiv queries ────────────────────────────────────────────────────────
 
@@ -26,15 +27,6 @@ import {
 const mockQuery = vi.mocked
 
 const OWNER = "0xdeadbeefdeadbeef"
-
-// ─── Helper: validate a zodSchema against input ────────────────────────────────
-
-function parseInput<T>(schema: ReturnType<typeof zodSchema>, input: T) {
-  const zod = (schema as unknown as { _def?: { schema?: z.ZodTypeAny } })
-  // Access the underlying zod schema; zodSchema wraps it
-  // Instead of internal access, just validate by duck-typing
-  return input
-}
 
 // ─── Write tool schema tests ───────────────────────────────────────────────────
 
@@ -120,7 +112,7 @@ function makeEntity(attrs: Array<{ key: string; value: string | number }>) {
 
 describe("buildReadTools — list_vault_items", () => {
   beforeEach(() => {
-    mockQuery(queryVaultItems).mockResolvedValue({ entities: [] } as any)
+    mockQuery(queryVaultItems).mockResolvedValue({ entities: [] } as unknown as QueryResult)
   })
 
   it("returns an empty array when vault is empty", async () => {
@@ -143,7 +135,7 @@ describe("buildReadTools — list_vault_items", () => {
           { key: "created_at", value: 1716000000000 },
         ]),
       ],
-    } as any)
+    } as unknown as QueryResult)
 
     const tools = buildReadTools(OWNER)
     const tool = tools.list_vault_items as unknown as {
@@ -169,7 +161,7 @@ describe("buildReadTools — list_vault_items", () => {
 
 describe("buildReadTools — list_active_grants", () => {
   it("returns an empty array when no grants are active", async () => {
-    mockQuery(queryActiveGrantsByOwner).mockResolvedValue({ entities: [] } as any)
+    mockQuery(queryActiveGrantsByOwner).mockResolvedValue({ entities: [] } as unknown as QueryResult)
     const tools = buildReadTools(OWNER)
     const tool = tools.list_active_grants as unknown as {
       execute: (args: Record<string, never>) => Promise<unknown[]>
@@ -188,7 +180,7 @@ describe("buildReadTools — list_active_grants", () => {
           { key: "expires_at", value: 1716100000000 },
         ]),
       ],
-    } as any)
+    } as unknown as QueryResult)
 
     const tools = buildReadTools(OWNER)
     const tool = tools.list_active_grants as unknown as {
@@ -219,7 +211,7 @@ describe("buildReadTools — lookup_contact", () => {
           payload: encoder.encode(payload),
         },
       ],
-    } as any)
+    } as unknown as QueryResult)
 
     const tools = buildReadTools(OWNER)
     const tool = tools.lookup_contact as unknown as {
@@ -254,7 +246,7 @@ describe("buildReadTools — query_grant_history", () => {
           payload: encoder.encode(payload),
         },
       ],
-    } as any)
+    } as unknown as QueryResult)
 
     const tools = buildReadTools(OWNER)
     const tool = tools.query_grant_history as unknown as {

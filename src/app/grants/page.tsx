@@ -245,8 +245,8 @@ export default function GrantsPage() {
   const { data: grants, isLoading } = useActiveGrants()
   const walletClient = useArkivWallet()
 
-  const revoke = useRevokeGrant(walletClient as any)
-  const extend = useExtendGrant(walletClient as any)
+  const revoke = useRevokeGrant(walletClient)
+  const extend = useExtendGrant(walletClient)
 
   const [revokeTarget, setRevokeTarget] = useState<Entity | null>(null)
   const [extendTarget, setExtendTarget] = useState<Entity | null>(null)

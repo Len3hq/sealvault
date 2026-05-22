@@ -24,7 +24,13 @@ export function useVaultAuth() {
     setIsDerivingKey(true)
 
     embeddedWallet
-      .sign(SIGN_MESSAGE)
+      .getEthereumProvider()
+      .then((provider) =>
+        provider.request({
+          method: "personal_sign",
+          params: [SIGN_MESSAGE, embeddedWallet.address],
+        }) as Promise<string>
+      )
       .then((signature) => {
         if (cancelled) return
         return deriveMasterKey(signature)

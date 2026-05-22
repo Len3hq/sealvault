@@ -14,5 +14,5 @@ export async function deleteVaultItem(
   walletClient: WalletClient,
   entityKey: string
 ): Promise<void> {
-  return walletClient.deleteEntity({ entityKey: entityKey as `0x${string}` })
+  await walletClient.deleteEntity({ entityKey: entityKey as `0x${string}` })
 }

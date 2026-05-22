@@ -11,7 +11,7 @@ The root page was replaced with a full-featured dashboard:
 - **Loading/unlocking states**: spinner while Privy initialises or while the master key is derived
 - **Authenticated dashboard**: three stat cards (document count → `/vault`, active shares → `/grants`, AES-256 info), a "Recent documents" section showing the last 3 vault items with file icons and category badges, and three Quick Action cards (Manage vault, Active shares, AI assistant)
 
-### Vault management (`src/app/vault/page.tsx`)
+### Vault management (`src/app/vault/page.tsx` — updated)
 A complete document management page with:
 - **Category filter tabs** (All / Medical / Legal / Financial / Personal) that filter the item list client-side
 - **VaultCard** — each document row shows file icon, label, size, upload date, category badge, and Share / Delete buttons
@@ -61,6 +61,40 @@ The app now feels like a complete product: a user can sign in, upload a document
 | `EXPIRY helpers` | 5 | 1h, 24h, 7d, 30d in seconds; extend-dialog preset alignment |
 
 Full suite after Phase 5: **179 tests, 9 files, all passing.**
+
+---
+
+---
+
+## Post-Phase Quality Pass
+
+After Phase 5, a full quality audit resolved all lint errors, type mismatches, and unused-symbol warnings across the codebase. The changes below are in production code and tests — no behaviour changed.
+
+### Type system fixes
+
+| File | Fix |
+|---|---|
+| `src/lib/arkiv/types.ts` | `WalletClient` interface now uses the SDK's actual return types — `updateEntity: Promise<UpdateEntityReturnType>`, `deleteEntity: Promise<DeleteEntityReturnType>`, `extendEntity: Promise<ExtendEntityReturnType>` — instead of `Promise<void>`. The `WalletArkivClient` from the SDK satisfies this interface directly, so no cast is needed when passing a real client. |
+| `src/lib/arkiv/mutations/access-grants.ts` | `revokeAccessGrant` and `extendAccessGrant` changed from `return walletClient.delete/extendEntity(...)` to `await walletClient.delete/extendEntity(...)` — properly discards the typed return value so the function signature `Promise<void>` holds. Removed unused `GRANT_STATUS` import. |
+| `src/lib/arkiv/mutations/vault-items.ts` | Same `return → await` fix for `deleteVaultItem`. |
+| `src/hooks/use-grant-actions.ts` | `useRevokeGrant` and `useExtendGrant` now accept `WalletClient \| null` instead of `WalletClient`. Both mutations throw `"Wallet not connected"` if called with a null client. This matches the `WalletArkivClient \| null` return type of `useArkivWallet()`. |
+| `src/app/grants/page.tsx` | Removed `walletClient as any` casts — the updated hook signatures accept `null` directly. |
+| `src/app/vault/page.tsx` | Removed unused `masterKey` destructured in `VaultPage` — the field is used in `UploadForm` and `ShareModal` sub-components but not in the page component itself. |
+
+### Test file cleanup
+
+| File | Fix |
+|---|---|
+| `src/__tests__/agent/tools.test.ts` | Removed dead `parseInput` helper and unused `zodSchema`/`z` imports. Replaced `as any` on all mock return values with `as unknown as Awaited<ReturnType<typeof queryVaultItems>>` — a proper type alias that expresses intent without unsafe casts. |
+| `src/__tests__/ui/grants.test.ts` | Removed unused `beforeEach` and `vi` imports. |
+
+### Final state after quality pass
+
+```
+Tests:      179 / 179 passed  (9 files)
+Type-check: 0 errors
+Lint:       0 warnings, 0 errors  (was 8 errors + 6 warnings)
+```
 
 ---
 

@@ -10,7 +10,7 @@ Phase 1 is the complete data layer between SealVault and the Arkiv Network block
 src/lib/arkiv/
 ├── client.ts            — Arkiv public client (Braga testnet connection)
 ├── constants.ts         — Project-wide constants, TTL values, status enums
-├── types.ts             — TypeScript interfaces for all entities and params
+├── types.ts             — TypeScript interfaces for all entities and params; WalletClient interface matches SDK return types exactly (UpdateEntityReturnType, DeleteEntityReturnType, ExtendEntityReturnType)
 ├── schemas/             — Entity builders (shape data before writing to Arkiv)
 │   ├── vault-item.ts
 │   ├── access-grant.ts
@@ -100,12 +100,12 @@ All queries follow the same pattern: `client.buildQuery().where(predicates).crea
 
 **Vault items:**
 - `createVaultItem` — creates entity on Arkiv, returns `entityKey`
-- `deleteVaultItem` — deletes a single entity (used only when no child grants exist)
+- `deleteVaultItem` — deletes a single entity (used only when no child grants exist); uses `await` to discard the SDK's typed `DeleteEntityReturnType` and keep the function signature `Promise<void>`
 
 **Access grants:**
 - `createAccessGrant` — creates grant entity with TTL = revocation timer
-- `revokeAccessGrant` — deletes the grant entity immediately (access dies instantly)
-- `extendAccessGrant` — calls `extendEntity` to push the TTL further out
+- `revokeAccessGrant` — deletes the grant entity immediately (access dies instantly); uses `await` to discard `DeleteEntityReturnType`
+- `extendAccessGrant` — calls `extendEntity` to push the TTL further out; uses `await` to discard `ExtendEntityReturnType`
 - `createGrantRecord` — creates the audit memory record
 - `updateGrantRecordStatus` — updates status attribute + outcome in payload; recalculates remaining TTL from `expires_at` so `updateEntity` receives a valid `expiresIn` value
 - `batchCreateAccessGrants` — creates multiple grants in one `mutateEntities` call (single transaction)

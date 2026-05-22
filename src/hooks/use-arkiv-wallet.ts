@@ -24,6 +24,7 @@ export function useArkivWallet(): WalletArkivClient | null {
     if (!embeddedWallet) return null
 
     return createWalletClient({
+      account: embeddedWallet.address as `0x${string}`,
       chain: braga,
       transport: custom({
         request: async (args: { method: string; params?: unknown[] }) => {

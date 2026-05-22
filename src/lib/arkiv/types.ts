@@ -6,6 +6,9 @@ import type {
   MutateEntitiesParameters,
   MutateEntitiesReturnType,
   CreateEntityReturnType,
+  UpdateEntityReturnType,
+  DeleteEntityReturnType,
+  ExtendEntityReturnType,
   Entity,
 } from "@arkiv-network/sdk"
 import type { VaultCategory, GrantStatus } from "./constants"
@@ -19,10 +22,10 @@ export type { Entity, CreateEntityParameters }
 
 export interface WalletClient {
   createEntity(params: CreateEntityParameters): Promise<CreateEntityReturnType>
-  updateEntity(params: UpdateEntityParameters): Promise<void>
-  deleteEntity(params: DeleteEntityParameters): Promise<void>
+  updateEntity(params: UpdateEntityParameters): Promise<UpdateEntityReturnType>
+  deleteEntity(params: DeleteEntityParameters): Promise<DeleteEntityReturnType>
   mutateEntities(params: MutateEntitiesParameters): Promise<MutateEntitiesReturnType>
-  extendEntity(params: ExtendEntityParameters): Promise<void>
+  extendEntity(params: ExtendEntityParameters): Promise<ExtendEntityReturnType>
 }
 
 // ─── Vault Item ───────────────────────────────────────────────────────────────

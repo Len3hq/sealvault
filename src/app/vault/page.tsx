@@ -467,7 +467,7 @@ function Overlay({ children, onClose }: { children: React.ReactNode; onClose: ()
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function VaultPage() {
-  const { isAuthenticated, isVaultReady, masterKey, walletAddress, publicClient, login } =
+  const { isAuthenticated, isVaultReady, walletAddress, publicClient, login } =
     useVaultAuth()
   const walletClient = useArkivWallet()
   const queryClient = useQueryClient()

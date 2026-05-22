@@ -15,7 +15,7 @@ src/
 │       ├── grant-flow.ts        — NEW: createMagicLinkGrant (full end-to-end flow)
 │       └── index.ts             — NEW: barrel export
 ├── hooks/
-│   ├── use-grant-actions.ts     — NEW: useCreateGrant, useRevokeGrant, useExtendGrant
+│   ├── use-grant-actions.ts     — NEW: useCreateGrant, useRevokeGrant, useExtendGrant (hooks accept WalletClient | null)
 │   └── use-grant-view.ts        — NEW: useGrantView (public, no auth required)
 └── app/
     └── view/
@@ -98,14 +98,17 @@ Three TanStack Query mutation hooks for components to call:
 **`useCreateGrant(walletClient)`**
 Calls `createMagicLinkGrant` with the authenticated user's master key and wallet address wired in. Invalidates `["grants"]` on success so active grants lists refresh automatically.
 
-**`useRevokeGrant(walletClient)`**
+**`useRevokeGrant(walletClient: WalletClient | null)`**
 Takes `{ grantEntityKey, grantRecord? }`:
-1. Calls `revokeAccessGrant` → deletes the Arkiv grant entity immediately → magic link stops working within seconds
-2. If a grant record entity exists, calls `updateGrantRecordStatus` → marks it `"revoked"` with outcome `"Manually revoked"` so the audit trail reflects the action
+1. Guards against null wallet — throws `"Wallet not connected"` if called without a live client
+2. Calls `revokeAccessGrant` → deletes the Arkiv grant entity immediately → magic link stops working within seconds
+3. If a grant record entity exists, calls `updateGrantRecordStatus` → marks it `"revoked"` with outcome `"Manually revoked"` so the audit trail reflects the action
 
-**`useExtendGrant(walletClient)`**
+**`useExtendGrant(walletClient: WalletClient | null)`**
 Takes `{ grantEntityKey, additionalSeconds }`:
-Calls `extendAccessGrant` → pushes the Arkiv entity TTL further out → the magic link stays active longer. The grant record's `expires_at` attribute is not updated here (Phase 4 agent handles the update via `updateEntity`).
+Guards against null wallet, then calls `extendAccessGrant` → pushes the Arkiv entity TTL further out → the magic link stays active longer. The grant record's `expires_at` attribute is not updated here (Phase 4 agent handles the update via `updateEntity`).
+
+Both hooks accept `WalletClient | null` (the return type of `useArkivWallet()`) so components can pass the wallet client directly without a cast. The null guard ensures a clear error message if a user somehow triggers a write action before the Privy embedded wallet has connected.
 
 ---
 

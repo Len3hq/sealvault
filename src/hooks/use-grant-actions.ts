@@ -51,11 +51,12 @@ interface RevokeInput {
   grantRecord?: Entity
 }
 
-export function useRevokeGrant(walletClient: WalletClient) {
+export function useRevokeGrant(walletClient: WalletClient | null) {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async ({ grantEntityKey, grantRecord }: RevokeInput) => {
+      if (!walletClient) throw new Error("Wallet not connected")
       // Delete the grant entity — magic link stops working immediately
       await revokeAccessGrant(walletClient, grantEntityKey)
 
@@ -81,11 +82,12 @@ interface ExtendInput {
   additionalSeconds: number
 }
 
-export function useExtendGrant(walletClient: WalletClient) {
+export function useExtendGrant(walletClient: WalletClient | null) {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async ({ grantEntityKey, additionalSeconds }: ExtendInput) => {
+      if (!walletClient) throw new Error("Wallet not connected")
       await extendAccessGrant(walletClient, grantEntityKey, additionalSeconds)
     },
     onSuccess: () => {
