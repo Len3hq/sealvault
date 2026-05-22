@@ -8,7 +8,7 @@ import { useVaultItems } from "@/hooks/use-vault-items"
 import { useCreateGrant } from "@/hooks/use-grant-actions"
 import { queryVaultItemByKey } from "@/lib/arkiv/queries"
 import { deleteVaultItemWithGrants } from "@/lib/arkiv/mutations"
-import { createVaultItem } from "@/lib/arkiv/mutations"
+import { createVaultItem, MAX_VAULT_ITEM_BYTES } from "@/lib/arkiv/mutations"
 import { encryptVaultItem } from "@/lib/crypto"
 import { getAttributeValue } from "@/lib/arkiv/schemas"
 import { VAULT_CATEGORIES } from "@/lib/arkiv/constants"
@@ -74,6 +74,10 @@ function UploadDialog({
 
   async function handleUpload() {
     if (!file) return
+    if (file.size > MAX_VAULT_ITEM_BYTES) {
+      setError(`File too large — maximum size is ${Math.round(MAX_VAULT_ITEM_BYTES / 1024)} KB`)
+      return
+    }
     if (!masterKey) { setError("Vault is locked — refresh and sign in again"); return }
     if (!walletAddress) { setError("No wallet address found — please reconnect"); return }
     if (!walletClient) { setError("Wallet not ready — wait a moment and retry"); return }
@@ -122,12 +126,15 @@ function UploadDialog({
         {file ? (
           <div className="space-y-1">
             <p className="text-slate-200 font-medium">{file.name}</p>
-            <p className="text-xs text-slate-400">{formatSize(file.size)}</p>
+            <p className={`text-xs ${file.size > MAX_VAULT_ITEM_BYTES ? "text-rose-400" : "text-slate-400"}`}>
+              {formatSize(file.size)}
+              {file.size > MAX_VAULT_ITEM_BYTES && ` — exceeds ${Math.round(MAX_VAULT_ITEM_BYTES / 1024)} KB limit`}
+            </p>
           </div>
         ) : (
           <div className="space-y-1">
             <p className="text-slate-300 text-sm">Click to choose a file</p>
-            <p className="text-xs text-slate-500">Any type supported</p>
+            <p className="text-xs text-slate-500">Any type · max {Math.round(MAX_VAULT_ITEM_BYTES / 1024)} KB</p>
           </div>
         )}
       </div>
