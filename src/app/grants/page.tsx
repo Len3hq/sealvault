@@ -6,8 +6,10 @@ import { useActiveGrants } from "@/hooks/use-active-grants"
 import { useRevokeGrant, useExtendGrant } from "@/hooks/use-grant-actions"
 import { useArkivWallet } from "@/hooks/use-arkiv-wallet"
 import { useVaultAuth } from "@/hooks/use-vault-auth"
+import { useGrantExpiry } from "@/hooks/use-grant-expiry"
 import { getAttributeValue } from "@/lib/arkiv/schemas"
 import type { Entity } from "@/lib/arkiv/types"
+import type { WalletClient } from "@/lib/arkiv/types"
 
 // ─── Time helpers ─────────────────────────────────────────────────────────────
 
@@ -241,9 +243,11 @@ function GrantCard({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function GrantsPage() {
-  const { isAuthenticated } = useVaultAuth()
+  const { isAuthenticated, walletAddress } = useVaultAuth()
   const { data: grants, isLoading } = useActiveGrants()
   const walletClient = useArkivWallet()
+
+  useGrantExpiry(walletClient as WalletClient | null, walletAddress)
 
   const revoke = useRevokeGrant(walletClient)
   const extend = useExtendGrant(walletClient)

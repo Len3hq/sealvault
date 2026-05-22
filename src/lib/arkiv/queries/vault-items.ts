@@ -33,22 +33,15 @@ export async function queryVaultItems(
     .fetch()
 }
 
+// Direct single-entity lookup — getEntity fetches payload + attributes in one RPC call.
 export async function queryVaultItemByKey(
   client: PublicClientType,
   entityKey: string,
-  ownerAddress: string
+  _ownerAddress: string
 ) {
-  const result = await client
-    .buildQuery()
-    .where([
-      eq("project", PROJECT_ATTRIBUTE),
-      eq("type", ENTITY_TYPES.VAULT_ITEM),
-    ])
-    .createdBy(ownerAddress as `0x${string}`)
-    .withPayload(true) // fetch encrypted payload for decryption
-    .withAttributes(true)
-    .withMetadata(true)
-    .fetch()
-
-  return result.entities.find((e) => e.key === (entityKey as `0x${string}`)) ?? null
+  try {
+    return await client.getEntity(entityKey as `0x${string}`)
+  } catch {
+    return null
+  }
 }

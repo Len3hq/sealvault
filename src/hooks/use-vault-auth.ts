@@ -10,6 +10,7 @@ export function useVaultAuth() {
   const { wallets } = useWallets()
   const [masterKey, setMasterKey] = useState<CryptoKey | null>(null)
   const [isDerivingKey, setIsDerivingKey] = useState(false)
+  const [keyError, setKeyError] = useState<string | null>(null)
   const derivingRef = useRef(false)
 
   const embeddedWallet = wallets.find(
@@ -22,6 +23,7 @@ export function useVaultAuth() {
     let cancelled = false
     derivingRef.current = true
     setIsDerivingKey(true)
+    setKeyError(null)
 
     embeddedWallet
       .getEthereumProvider()
@@ -39,7 +41,12 @@ export function useVaultAuth() {
         if (cancelled || !key) return
         setMasterKey(key as CryptoKey)
       })
-      .catch(console.error)
+      .catch((err) => {
+        if (!cancelled) {
+          console.error("Key derivation failed:", err)
+          setKeyError(err instanceof Error ? err.message : "Failed to unlock vault")
+        }
+      })
       .finally(() => {
         derivingRef.current = false
         if (!cancelled) setIsDerivingKey(false)
@@ -50,8 +57,15 @@ export function useVaultAuth() {
     }
   }, [authenticated, embeddedWallet, masterKey])
 
+  const retryKeyDerivation = useCallback(() => {
+    setKeyError(null)
+    setMasterKey(null)
+    derivingRef.current = false
+  }, [])
+
   const handleLogout = useCallback(async () => {
     setMasterKey(null)
+    setKeyError(null)
     derivingRef.current = false
     await logout()
   }, [logout])
@@ -62,8 +76,10 @@ export function useVaultAuth() {
     user,
     masterKey,
     isDerivingKey,
-    // true once the app can act — either not logged in, or logged in + key ready
-    isVaultReady: ready && (!authenticated || !!masterKey),
+    keyError,
+    retryKeyDerivation,
+    // true once the app can act — spinning only while actively deriving
+    isVaultReady: ready && (!authenticated || !!masterKey || !!keyError),
     login,
     logout: handleLogout,
     walletAddress: embeddedWallet?.address as string | undefined,

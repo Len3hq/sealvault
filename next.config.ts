@@ -1,14 +1,27 @@
 import type { NextConfig } from "next"
 
+const STUB = "./src/lib/empty.ts"
+
 const nextConfig: NextConfig = {
   transpilePackages: ["viem", "@arkiv-network/sdk"],
+
+  // Turbopack config (used with next dev --turbopack)
+  // Only stub packages that are NOT installed in node_modules.
+  // Installed packages (@solana/kit, @solana-program/*) must NOT be stubbed —
+  // Turbopack statically validates named exports and will error if their real
+  // consumers (privy, x402) try to import named exports from an empty module.
+  turbopack: {
+    resolveAlias: {
+      "@farcaster/mini-app-solana": STUB,
+      "@solana-program/memo":       STUB,
+      "permissionless":             STUB,
+    },
+  },
+
+  // Webpack fallback (next build / next start)
   webpack: (config) => {
-    // Privy includes optional Farcaster/Solana peer deps we don't use — silence the warnings
     config.resolve.alias["@farcaster/mini-app-solana"] = false
     config.resolve.alias["@solana-program/memo"]       = false
-    config.resolve.alias["@solana-program/system"]     = false
-    config.resolve.alias["@solana-program/token"]      = false
-    config.resolve.alias["@solana/kit"]                = false
     config.resolve.alias["permissionless"]             = false
     return config
   },

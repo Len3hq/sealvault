@@ -73,7 +73,10 @@ function UploadDialog({
   const fileRef = useRef<HTMLInputElement>(null)
 
   async function handleUpload() {
-    if (!file || !masterKey || !walletAddress || !walletClient) return
+    if (!file) return
+    if (!masterKey) { setError("Vault is locked — refresh and sign in again"); return }
+    if (!walletAddress) { setError("No wallet address found — please reconnect"); return }
+    if (!walletClient) { setError("Wallet not ready — wait a moment and retry"); return }
     setUploading(true)
     setError(null)
     try {
@@ -203,7 +206,7 @@ function ShareDialog({
   const [copied, setCopied] = useState(false)
 
   async function handleShare() {
-    if (!masterKey || !walletAddress || !walletClient || !granteeName.trim()) return
+    if (!granteeName.trim() || !masterKey || !walletAddress || !walletClient) return
 
     const entity = await queryVaultItemByKey(publicClient, vaultItemKey, walletAddress)
     if (!entity?.payload) return
@@ -467,7 +470,7 @@ function Overlay({ children, onClose }: { children: React.ReactNode; onClose: ()
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function VaultPage() {
-  const { isAuthenticated, isVaultReady, walletAddress, publicClient, login } =
+  const { isAuthenticated, isVaultReady, walletAddress, publicClient, login, keyError, retryKeyDerivation } =
     useVaultAuth()
   const walletClient = useArkivWallet()
   const queryClient = useQueryClient()
@@ -510,6 +513,23 @@ export default function VaultPage() {
             className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold text-sm transition-colors"
           >
             Sign in
+          </button>
+        </div>
+      </main>
+    )
+  }
+
+  if (keyError) {
+    return (
+      <main className="min-h-[calc(100vh-57px)] flex items-center justify-center px-4">
+        <div className="text-center space-y-4">
+          <p className="text-slate-400 text-sm">Failed to unlock vault.</p>
+          <p className="text-xs text-slate-500 max-w-xs">{keyError}</p>
+          <button
+            onClick={retryKeyDerivation}
+            className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold text-sm transition-colors"
+          >
+            Retry
           </button>
         </div>
       </main>

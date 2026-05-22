@@ -50,8 +50,10 @@ export function useAgentChat({
     () =>
       new DefaultChatTransport({
         api: "/api/agent",
-        prepareSendMessagesRequest: ({ body }) => ({
-          body: { ...(body ?? {}), ownerAddress: walletAddressRef.current },
+        // When prepareSendMessagesRequest is defined, the SDK uses ONLY the
+        // returned body — it does NOT auto-inject messages. Include them explicitly.
+        prepareSendMessagesRequest: ({ body, messages }) => ({
+          body: { ...(body ?? {}), messages, ownerAddress: walletAddressRef.current },
         }),
       })
   )
