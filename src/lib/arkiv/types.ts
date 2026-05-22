@@ -52,6 +52,8 @@ export interface BuildVaultItemParams extends VaultItemMeta {
 export interface AccessGrantPayload {
   grantCiphertext: string
   grantIv: string
+  label?: string    // document display name shown to grantee
+  fileType?: string // MIME type for rendering (e.g. "application/pdf")
 }
 
 export interface BuildAccessGrantParams {
