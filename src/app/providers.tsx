@@ -21,7 +21,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       config={{
         defaultChain: braga,
         supportedChains: [braga],
-        loginMethods: ["google", "apple", "email"],
+        loginMethods: ["email"],
         embeddedWallets: {
           ethereum: { createOnLogin: "users-without-wallets" },
           showWalletUIs: false,

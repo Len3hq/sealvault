@@ -3,8 +3,6 @@ import type { NextConfig } from "next"
 const STUB = "./src/lib/empty.ts"
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["viem", "@arkiv-network/sdk"],
-
   // Turbopack config (used with next dev --turbopack)
   // Only stub packages that are NOT installed in node_modules.
   // Installed packages (@solana/kit, @solana-program/*) must NOT be stubbed —

@@ -128,7 +128,7 @@ export default function Home() {
             Sign in to open your vault
           </button>
           <p className="text-xs text-slate-600">
-            Google, Apple, or email — no crypto knowledge needed
+            Sign in with your email — no crypto knowledge needed
           </p>
         </div>
       </main>

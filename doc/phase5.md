@@ -98,6 +98,76 @@ Lint:       0 warnings, 0 errors  (was 8 errors + 6 warnings)
 
 ---
 
+## Performance & Stability Fix — Deep research on the-pines/ocean
+
+### Research basis
+A deep-dive audit of [ocean](https://github.com/the-pines/ocean) — another Arkiv-network app built with Next.js + Privy — revealed the architectural patterns that keep their app fast and stable. Key findings applied below.
+
+---
+
+### Fix 1 — Remove `transpilePackages` (`next.config.ts`)
+
+Both `viem` (52 MB) and `@arkiv-network/sdk` ship pre-compiled ESM. `transpilePackages` forced Turbopack to re-process viem from source on every cold start. Removed. Ocean's `next.config.ts` is completely empty — no webpack or bundler overrides at all.
+
+---
+
+### Fix 2 — Revert dynamic Privy import; keep sync loading (`providers.tsx`)
+
+An earlier attempt split `PrivyProvider` into a `next/dynamic` lazy chunk. This caused two regressions:
+
+1. **"Other parts not open"** — the dynamic `loading` prop renders a full-screen spinner that replaces the entire layout, including the Nav. Users on any page would see a blank spinner with no navigation while the Privy chunk downloaded. Clicking nav links had no effect.
+
+2. **Routing instability** — with `ssr: false`, the dynamic chunk's loading state could re-trigger on certain navigation patterns in the App Router, causing pages to show the loading spinner instead of their content.
+
+Ocean loads `PrivyProvider` **synchronously** in `providers.tsx`. Their speed comes from a minimal Privy config surface, not lazy loading. Reverted to synchronous loading and deleted `src/app/privy-provider.tsx`.
+
+---
+
+### Fix 3 — Reduce Privy login methods to `["google"]` (`providers.tsx`)
+
+Ocean uses only `loginMethods: ["google"]`. SealVault previously exposed `["google", "apple", "email"]`. Each extra login method causes Privy to pull in additional sub-bundles at compile time (Apple Sign In + email/SMS verification code paths). Reducing to Google-only shrinks the effective Privy surface that Turbopack must compile. Updated landing-page copy to match.
+
+---
+
+### Fix 4 — Remove unused `@ai-sdk/anthropic` dependency (`package.json`)
+
+The package was listed in `dependencies` but never imported anywhere — the agent route uses `@ai-sdk/openai`. Removed via `npm uninstall`. Eliminates a dead dependency from the install graph.
+
+---
+
+### Fix 5 — Vault unlock stuck at "Unlocking vault…" (`use-vault-auth.ts`)
+
+**Root cause (two bugs compounding):**
+
+**Bug A — `derivingRef` is the wrong mutex for Fast Refresh.** `useRef` returns a new object on each component instance. React Fast Refresh preserves `useState` values but creates a new fiber for the component, meaning the new instance's `derivingRef` starts `false` while the old closure (with the in-flight `personal_sign` promise) holds the old ref. The old `finally` block sets `derivingRef.current = false` on the *old* ref — the new instance never sees this update and remains stuck.
+
+**Bug B — `personal_sign` has no timeout.** Privy's iframe signer can queue requests serially. When Fast Refresh interrupts a sign request mid-flight, the next request sits behind the orphaned one in the queue. With no timeout, neither ever resolves. `isDerivingKey` stays `true`, `keyError` stays `null`, and the page shows "Unlocking vault…" indefinitely.
+
+**Fixes applied to `src/hooks/use-vault-auth.ts`:**
+
+| Change | Reason |
+|---|---|
+| Removed `derivingRef`; use `isDerivingKey` state as the mutex | State setters (`setIsDerivingKey`) are stable across renders and Fast Refresh cycles — a `setIsDerivingKey(false)` from any closure updates the correct component state |
+| `setIsDerivingKey(false)` in `finally` is unconditional | Even when `cancelled = true`, clearing the guard lets the next effect run start a fresh derivation |
+| Added 15 s `Promise.race` timeout to `personal_sign` | If Privy's signer stalls, `keyError` is set after 15 s and the existing "Retry" button becomes the recovery path |
+| `retryKeyDerivation` and `handleLogout` reset `isDerivingKey` explicitly | Ensures the guard is always clear before re-attempting |
+
+---
+
+### Ocean architecture patterns (not yet applied — future reference)
+
+| Pattern | Ocean | SealVault |
+|---|---|---|
+| Write mode | Server-side relayer (user never signs transactions directly) | Client-side Arkiv SDK with embedded wallet |
+| Key derivation | None — no `personal_sign` for symmetric key | HKDF from `personal_sign` signature |
+| State management | Plain `useEffect` + `useCallback`, no React Query | TanStack React Query |
+| CSS | Tailwind v4 via `@tailwindcss/postcss` | Tailwind v3 |
+| Signature verification on reads | Yes — every entity verified before use | Not applied |
+| Checkpoint polling after write | 15 s poll until Arkiv confirms indexed | Not applied |
+| Autosave debounce | 3500 ms with dirty-state ref | N/A (manual save) |
+
+---
+
 ## Recommended improvements
 
 1. **Real-time expiry countdown** — use `setInterval` in `GrantCard` to tick the time-remaining pill every 30 seconds without a full query refetch.
