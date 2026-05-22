@@ -13,3 +13,5 @@ export {
   deleteVaultItemWithGrants,
   handleGrantExpiry,
 } from "./lifecycle"
+
+export { saveContact } from "./agent-memory"

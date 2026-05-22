@@ -65,6 +65,7 @@ export {
   batchCreateAccessGrants,
   deleteVaultItemWithGrants,
   handleGrantExpiry,
+  saveContact,
 } from "./mutations"
 
 // Events
