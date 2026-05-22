@@ -9,23 +9,24 @@ import type {
   UpdateEntityReturnType,
   DeleteEntityReturnType,
   ExtendEntityReturnType,
+  TxParams,
   Entity,
 } from "@arkiv-network/sdk"
 import type { VaultCategory, GrantStatus } from "./constants"
 
 // Re-export SDK types used across the codebase
-export type { Entity, CreateEntityParameters }
+export type { Entity, CreateEntityParameters, TxParams }
 
 // ─── Minimal WalletClient interface ───────────────────────────────────────────
 // Matches the Arkiv SDK wallet actions — keeps mutation functions testable.
 // The real WalletArkivClient from the SDK satisfies this interface.
 
 export interface WalletClient {
-  createEntity(params: CreateEntityParameters): Promise<CreateEntityReturnType>
-  updateEntity(params: UpdateEntityParameters): Promise<UpdateEntityReturnType>
-  deleteEntity(params: DeleteEntityParameters): Promise<DeleteEntityReturnType>
-  mutateEntities(params: MutateEntitiesParameters): Promise<MutateEntitiesReturnType>
-  extendEntity(params: ExtendEntityParameters): Promise<ExtendEntityReturnType>
+  createEntity(params: CreateEntityParameters, txParams?: TxParams): Promise<CreateEntityReturnType>
+  updateEntity(params: UpdateEntityParameters, txParams?: TxParams): Promise<UpdateEntityReturnType>
+  deleteEntity(params: DeleteEntityParameters, txParams?: TxParams): Promise<DeleteEntityReturnType>
+  mutateEntities(params: MutateEntitiesParameters, txParams?: TxParams): Promise<MutateEntitiesReturnType>
+  extendEntity(params: ExtendEntityParameters, txParams?: TxParams): Promise<ExtendEntityReturnType>
 }
 
 // ─── Vault Item ───────────────────────────────────────────────────────────────
