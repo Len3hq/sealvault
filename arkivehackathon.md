@@ -47,7 +47,7 @@ The fundamental data unit. Each entity contains:
 - `payload` — JSON, text, or binary data
 - `attributes` — queryable key-value metadata
 - `expiresIn` — TTL in seconds (auto-pruned after expiry)
-- `mimeType` — content type declaration
+- `contentType` — MIME type of the payload (e.g. `"application/json"`)
 
 ### Attributes
 Two types of queryable metadata:
@@ -56,6 +56,16 @@ Two types of queryable metadata:
 
 ### ExpiresIn
 Data automatically expires and is pruned. Pay only for storage duration. Over-allocating wastes fees — start short, extend if needed via `extendEntity()`.
+
+Always use the `ExpirationTime` helper from `@arkiv-network/sdk/utils` — never hardcode raw second values:
+```typescript
+import { ExpirationTime } from "@arkiv-network/sdk/utils"
+
+ExpirationTime.fromMinutes(30)  // 1800
+ExpirationTime.fromHours(48)    // 172800
+ExpirationTime.fromDays(30)     // 2592000
+ExpirationTime.fromYears(2)     // 63072000
+```
 
 ### Query Language
 SQL-inspired, chainable operators:
@@ -86,31 +96,35 @@ npm install @arkiv-network/sdk
 ```typescript
 import { createPublicClient, http } from "@arkiv-network/sdk"
 import { braga } from "@arkiv-network/sdk/chains"
+import { eq, gt } from "@arkiv-network/sdk/query"
 
 const client = createPublicClient({ chain: braga, transport: http() })
 
 const results = await client
-  .entities()
+  .buildQuery()
   .where(eq('type', 'note'))
   .where(gt('priority', 3))
   .withPayload(true)
-  .orderBy('priority', 'desc')
+  .withAttributes(true)
+  .orderBy('priority', 'number', 'desc')
   .limit(50)
   .fetch()
 ```
 
 ### Write (WalletClient)
 ```typescript
+import { ExpirationTime, jsonToPayload } from "@arkiv-network/sdk/utils"
+
 // Create
 const { entityKey } = await walletClient.createEntity({
-  payload: JSON.stringify({ title: "Hello Arkiv" }),
-  mimeType: "application/json",
+  payload: jsonToPayload({ title: "Hello Arkiv" }),
+  contentType: "application/json",
   attributes: [{ key: "type", value: "note" }, { key: "priority", value: 5 }],
-  expiresIn: days(7),
+  expiresIn: ExpirationTime.fromDays(7),
 })
 
-// Update (full replacement — resend all attributes)
-await walletClient.updateEntity({ entityKey, payload: "...", attributes: [...] })
+// Update (full replacement — resend all attributes or they are dropped)
+await walletClient.updateEntity({ entityKey, payload: jsonToPayload({...}), contentType: "application/json", attributes: [...], expiresIn: ExpirationTime.fromDays(7) })
 
 // Delete
 await walletClient.deleteEntity({ entityKey })
@@ -118,8 +132,11 @@ await walletClient.deleteEntity({ entityKey })
 // Transfer ownership
 await walletClient.changeOwnership({ entityKey, newOwner: "0x..." })
 
-// Batch create (single transaction)
-await walletClient.mutateEntities([...entities])
+// Batch ops (creates, updates, deletes, extensions — all in one transaction)
+await walletClient.mutateEntities({
+  creates: [...entityParams],
+  deletes: [{ entityKey: "0x..." }, { entityKey: "0x..." }],
+})
 ```
 
 ### Pagination

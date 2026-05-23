@@ -177,29 +177,33 @@ async function createMagicLinkGrant(
     ["encrypt", "decrypt"]
   )
 
-  // Decrypt original content, re-encrypt with grantKey
-  const originalContent = await decryptVaultItem(encryptedPayload, masterKey)
-  const grantEncrypted = await encryptWithKey(originalContent, grantKey)
+  // Decrypt original content, re-encrypt under the token key
+  const originalContent = await decryptVaultItem(vaultItemPayload, masterKey)
+  const { ciphertext: grantCiphertext, grantIv } = await encryptForGrant(originalContent, token)
 
-  // Store on Arkiv with TTL = grant duration
+  // Upload re-encrypted ciphertext to IPFS (Pinata) — only the CID goes on-chain
+  const grantCID = await uploadToIPFS(grantCiphertext)
+
+  // Store only the CID + metadata on Arkiv (tiny on-chain footprint)
   const { entityKey } = await walletClient.createEntity({
-    payload: JSON.stringify({
-      grantCiphertext: grantEncrypted.ciphertext,
-      grantIv: grantEncrypted.iv,
-      // token itself is NOT stored here — it stays only in the URL
+    payload: jsonToPayload({
+      grantCID,   // IPFS CID — token in URL decrypts it; token never stored here
+      grantIv,
+      label,
+      fileType,
     }),
-    mimeType: "application/json",
+    contentType: "application/json",
     attributes: [
-      { key: "project",        value: PROJECT_ATTRIBUTE },
-      { key: "type",           value: "access_grant" },
-      { key: "token_hash",     value: keccak256(token) }, // hash only, not the token
-      { key: "parent_key",     value: vaultItemKey },     // explicit relationship
-      { key: "granted_by",     value: ownerAddress },
-      { key: "purpose",        value: purpose },
-      { key: "granted_at",     value: Date.now() },
-      { key: "expires_at",     value: Date.now() + durationSeconds * 1000 },
+      { key: "project",    value: PROJECT_ATTRIBUTE },
+      { key: "type",       value: "access_grant" },
+      { key: "token_hash", value: keccak256(token) }, // hash only, not the token
+      { key: "parent_key", value: vaultItemKey },     // explicit relationship
+      { key: "granted_by", value: ownerAddress },
+      { key: "purpose",    value: purpose },
+      { key: "granted_at", value: Date.now() },
+      { key: "expires_at", value: Date.now() + durationSeconds * 1000 },
     ],
-    expiresIn: durationSeconds,
+    expiresIn: durationSeconds, // clamped to [1h, 30d] at schema layer
   })
 
   return {
@@ -221,48 +225,53 @@ Every entity carries `PROJECT_ATTRIBUTE = "sealvault"` and is queried with `.cre
 
 ```typescript
 {
-  payload: JSON.stringify({
-    ciphertext: "hex...",
-    iv: "hex...",
-    wrappedItemKey: "hex...",
-    wrapIv: "hex...",
-    version: 1,
-    fileName: "blood-work-2026.pdf",  // stored encrypted in payload, not attributes
+  // Encrypted bytes live on IPFS (Pinata). On-chain payload is ~200 bytes.
+  payload: jsonToPayload({
+    cid:            "QmXyz...",  // IPFS CID — content-addressed encrypted ciphertext
+    iv:             "0xhex...",
+    wrappedItemKey: "0xhex...",
+    wrapIv:         "0xhex...",
+    version:        1,
   }),
-  mimeType: "application/json",
+  contentType: "application/json",
   attributes: [
     { key: "project",    value: "sealvault" },
     { key: "type",       value: "vault_item" },
     { key: "category",   value: "medical" },         // plaintext for filtering
     { key: "label",      value: "Blood Work 2026" }, // plaintext for display
-    { key: "file_type",  value: "pdf" },
+    { key: "file_type",  value: "application/pdf" },
     { key: "created_at", value: Date.now() },  // numeric → range queries
     { key: "size_bytes", value: 204800 },       // numeric → size filtering
   ],
-  expiresIn: years(10),
+  expiresIn: ExpirationTime.fromYears(10),
 }
 ```
 
 ### Type 2 — Access Grant (variable TTL = the revocation mechanism)
 
+`durationSeconds` is clamped to `[GRANT_MIN (1h), GRANT_MAX (30d)]` at schema build time.
+
 ```typescript
 {
-  payload: JSON.stringify({
-    grantCiphertext: "hex...",  // content re-encrypted for the magic link token
-    grantIv: "hex...",
+  // Re-encrypted ciphertext lives on IPFS. On-chain payload is ~200 bytes.
+  payload: jsonToPayload({
+    grantCID:  "QmXyz...",        // IPFS CID — re-encrypted ciphertext for this grantee
+    grantIv:   "0xhex...",
+    label:     "Blood Work 2026", // embedded so grantee can render without extra query
+    fileType:  "application/pdf",
   }),
-  mimeType: "application/json",
+  contentType: "application/json",
   attributes: [
     { key: "project",    value: "sealvault" },
     { key: "type",       value: "access_grant" },
-    { key: "token_hash", value: "keccak256(token)..." }, // for lookup by grantee
+    { key: "token_hash", value: "keccak256(token)..." }, // hash only — token stays in URL
     { key: "parent_key", value: "vault_item_entity_key" }, // explicit relationship ←
     { key: "granted_by", value: "0xOwner..." },
     { key: "purpose",    value: "annual checkup" },
     { key: "granted_at", value: Date.now() },
     { key: "expires_at", value: Date.now() + 172800000 }, // numeric → queryable
   ],
-  expiresIn: hours(48),  // ← THIS IS THE REVOCATION MECHANISM
+  expiresIn: clampedDuration,  // ← THIS IS THE REVOCATION MECHANISM (clamped 1h–30d)
 }
 ```
 
@@ -270,11 +279,12 @@ Every entity carries `PROJECT_ATTRIBUTE = "sealvault"` and is queried with `.cre
 
 ```typescript
 {
-  payload: JSON.stringify({
+  payload: jsonToPayload({
     summary: "Granted Dr. Smith access to Blood Work 2026 for 48h",
     context: "Annual specialist appointment 2026-05-22",
-    outcome: null, // updated to "Expired" or "Revoked" when event fires
+    outcome: null, // updated to "Expired automatically" or "Manually revoked" on event
   }),
+  contentType: "application/json",
   attributes: [
     { key: "project",      value: "sealvault" },
     { key: "type",         value: "agent_memory" },
@@ -287,25 +297,30 @@ Every entity carries `PROJECT_ATTRIBUTE = "sealvault"` and is queried with `.cre
     { key: "granted_at",   value: Date.now() },
     { key: "expires_at",   value: Date.now() + 172800000 },
   ],
-  expiresIn: years(2), // audit trail outlives the grant itself
+  expiresIn: ExpirationTime.fromYears(2), // audit trail outlives the grant itself
 }
 ```
 
 ### Type 4 — Agent Memory: Contact (5-year TTL)
 
+Tags are stored as individual numbered attributes (not comma-joined) so each tag is independently queryable via `eq("tag_0", "doctor")`.
+
 ```typescript
 {
-  payload: JSON.stringify({ notes: "My GP, trusted for routine checkups" }),
+  payload: jsonToPayload({ notes: "My GP, trusted for routine checkups" }),
+  contentType: "application/json",
   attributes: [
-    { key: "project",  value: "sealvault" },
-    { key: "type",     value: "agent_memory" },
-    { key: "subtype",  value: "contact" },
-    { key: "name",     value: "Dr. Smith" },
-    { key: "email",    value: "smith@clinic.com" }, // optional, for display
-    { key: "tags",     value: "medical,trusted" },
-    { key: "added_at", value: Date.now() },
+    { key: "project",   value: "sealvault" },
+    { key: "type",      value: "agent_memory" },
+    { key: "subtype",   value: "contact" },
+    { key: "name",      value: "Dr. Smith" },
+    { key: "email",     value: "smith@clinic.com" }, // optional, for display
+    { key: "tag_0",     value: "medical" },   // individual attribute per tag
+    { key: "tag_1",     value: "trusted" },   // enables: eq("tag_0", "medical")
+    { key: "tag_count", value: 2 },           // numeric — how many tag_N attrs exist
+    { key: "added_at",  value: Date.now() },
   ],
-  expiresIn: years(5),
+  expiresIn: ExpirationTime.fromYears(5),
 }
 ```
 
@@ -316,29 +331,31 @@ Every entity carries `PROJECT_ATTRIBUTE = "sealvault"` and is queried with `.cre
 When a vault item is deleted, all its child grant entities must be deleted immediately. Otherwise grants point at a missing item — orphaned data costs points on the rubric.
 
 ```typescript
-async function deleteVaultItem(itemEntityKey: string) {
+async function deleteVaultItemWithGrants(itemEntityKey: string) {
   // Find all grants that reference this vault item
-  const orphanedGrants = await publicClient
-    .entities()
-    .where(eq("project", PROJECT_ATTRIBUTE))
-    .where(eq("type", "access_grant"))
-    .where(eq("parent_key", itemEntityKey))
+  const grantsResult = await publicClient
+    .buildQuery()
+    .where([
+      eq("project",    PROJECT_ATTRIBUTE),
+      eq("type",       "access_grant"),
+      eq("parent_key", itemEntityKey),
+    ])
     .createdBy(ownerAddress)
+    .withAttributes(true)
     .fetch()
 
-  // Delete grants + the vault item in one batch
-  const keysToDelete = [
-    itemEntityKey,
-    ...orphanedGrants.entities.map(e => e.arkivEntityKey)
-  ]
+  // Update all memory records to status: "revoked" (audit trail preserved)
+  await Promise.all(grantsResult.entities.map(async (grant) => {
+    const memory = await findMemoryForGrant(String(grant.key))
+    if (memory) await updateGrantRecordStatus(walletClient, memory, "revoked", "Parent document deleted")
+  }))
 
-  await Promise.all(keysToDelete.map(key => walletClient.deleteEntity({ entityKey: key })))
-
-  // Update all memory records for these grants to status: "revoked"
-  for (const grant of orphanedGrants.entities) {
-    const memory = await findMemoryForGrant(grant.arkivEntityKey)
-    if (memory) await updateMemoryStatus(memory.arkivEntityKey, "revoked")
-  }
+  // Delete grants + the vault item in ONE transaction (not N+1 individual calls)
+  const keysToDelete = [itemEntityKey, ...grantsResult.entities.map(e => String(e.key))]
+  await walletClient.mutateEntities(
+    { deletes: keysToDelete.map(key => ({ entityKey: key as `0x${string}` })) },
+    DEFAULT_TX_PARAMS
+  )
 }
 ```
 
@@ -370,11 +387,13 @@ await walletClient.updateEntity({
 
 ```typescript
 // Agent hears: "Share my tax return with both my accountant and my lawyer"
-const grants = await walletClient.mutateEntities([
-  buildGrantEntity(itemKey, accountantToken, hours(72), "Tax filing"),
-  buildGrantEntity(itemKey, lawyerToken, hours(72), "Legal review"),
-])
-// Two grants created in one transaction
+const { createdEntities } = await walletClient.mutateEntities({
+  creates: [
+    buildGrantEntity(itemKey, accountantToken, ExpirationTime.fromHours(72), "Tax filing"),
+    buildGrantEntity(itemKey, lawyerToken,     ExpirationTime.fromHours(72), "Legal review"),
+  ],
+}, DEFAULT_TX_PARAMS)
+// Two grants created in one transaction — createdEntities[0] and [1] are the entity keys
 ```
 
 ### 3. $creator Verification on All Queries
@@ -382,11 +401,11 @@ const grants = await walletClient.mutateEntities([
 ```typescript
 // Always filter by creator to prevent injection attacks
 const myVaultItems = await publicClient
-  .entities()
-  .where(eq("project", PROJECT_ATTRIBUTE))
-  .where(eq("type", "vault_item"))
+  .buildQuery()
+  .where([eq("project", PROJECT_ATTRIBUTE), eq("type", "vault_item")])
   .createdBy(ownerAddress)   // ← tamper-proof: ignores entities from other wallets
-  .orderBy("created_at", "desc")
+  .withAttributes(true)
+  .orderBy("created_at", "number", "desc")
   .fetch()
 ```
 
@@ -417,8 +436,9 @@ const unsubscribe = publicClient.subscribeEntityEvents(
       if (memory) await updateMemoryStatus(memory.arkivEntityKey, "revoked")
     },
   },
-  { pollingInterval: 30_000 }
+  30_000 // pollingInterval in ms — second positional argument
 )
+// Returns Promise<() => void> — call the returned function on unmount to stop polling
 ```
 
 ---
@@ -686,38 +706,44 @@ OWNER (any person, no crypto knowledge)
 │  └── embedded wallet (invisible to user)                        │
 │       └── signs once → master key derived → stored in memory   │
 │                                                                  │
-│  Encryption Layer (Web Crypto API)                              │
-│  └── encryptItem / decryptItem / wrapKey / unwrapKey            │
+│  Encryption Layer (Web Crypto API, AES-256-GCM + HKDF)         │
+│  └── encryptVaultItem / decryptVaultItem (per-item key wrap)    │
+│  └── encryptForGrant / decryptGrant (token-derived key)         │
 │                                                                  │
 │  Vault UI                                                        │
 │  └── upload, view, search, filter, manage shares                │
 │                                                                  │
-│  Agent Layer (Claude claude-sonnet-4-6)                               │
-│  └── natural language → tools → Arkiv SDK calls                 │
+│  Agent Layer (gpt-4o-mini via OpenAI / AI SDK v6)               │
+│  └── natural language → tools → Arkiv SDK + crypto calls        │
 │  └── reads/writes agent_memory entities                          │
 │  └── subscribes to expiry events → live notifications            │
-└─────────────────────┬───────────────────────────────────────────┘
-                      │ @arkiv-network/sdk
-                      ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Arkiv DB-Chain (Braga)                        │
-│                                                                  │
-│  vault_item         (TTL: 10yr)  — encrypted documents          │
-│  access_grant       (TTL: 1h–30d)  ← REVOCATION MECHANISM      │
-│  agent_memory/grant (TTL: 2yr)   — audit trail                  │
-│  agent_memory/contact (TTL: 5yr) — address book                 │
-│                                                                  │
-│  All queries use: PROJECT_ATTRIBUTE + .createdBy(ownerAddress)  │
-│                      │                                           │
-│              Arkiv Coordination Layer (L2)                       │
-│                      │                                           │
-│              Ethereum Mainnet (L1) — tamper-proof proofs         │
-└─────────────────────────────────────────────────────────────────┘
-                      │
-                      │  magic link → no wallet needed
-                      ▼
+└──────────┬────────────────────────────────────┬─────────────────┘
+           │ encrypted bytes (Uint8Array)        │ CID + key material
+           ▼                                     ▼
+┌──────────────────────┐          ┌──────────────────────────────────────┐
+│  IPFS / Pinata       │          │  Arkiv DB-Chain (Braga)              │
+│                      │          │                                      │
+│  Encrypted ciphertext│          │  vault_item   (TTL: 10yr)           │
+│  for vault items     │          │    payload: { cid, iv, wrappedKey }  │
+│                      │          │                                      │
+│  Re-encrypted bytes  │          │  access_grant (TTL: 1h–30d) ← REVOKE│
+│  for each grant      │          │    payload: { grantCID, grantIv }   │
+│                      │          │                                      │
+│  Content-addressed:  │          │  agent_memory/grant (TTL: 2yr)      │
+│  CID is immutable    │          │  agent_memory/contact (TTL: 5yr)    │
+│  proof of content    │          │                                      │
+└──────────────────────┘          │  All queries: PROJECT_ATTRIBUTE      │
+  Neither layer alone             │  + .createdBy(ownerAddress)          │
+  reveals the document:           │                                      │
+  IPFS has locked box,            │  Arkiv Coordination Layer (L2)       │
+  Arkiv has the key.              │  Ethereum Mainnet (L1) — proofs      │
+                                  └──────────────────────────────────────┘
+                                                 │
+                                                 │  magic link → no wallet needed
+                                                 ▼
 GRANTEE (any person, any browser, zero crypto knowledge)
-  Clicks link → app queries Arkiv by token hash → doc decrypts → reads
+  Clicks link → token in URL → query Arkiv by token_hash → fetch IPFS by grantCID
+  → decrypt with token-derived key → document opens. No account.
   Link expires → Arkiv prunes entity → "This link has expired"
 ```
 
@@ -729,11 +755,13 @@ GRANTEE (any person, any browser, zero crypto knowledge)
 |---|---|---|
 | Framework | Next.js 15 (App Router) | Vercel deploy, streaming agent responses via RSC |
 | Auth & Wallet | **Privy** | Social login → embedded wallet, zero MetaMask dependency |
-| Arkiv | `@arkiv-network/sdk` | Required |
-| Encryption | Web Crypto API (native) | No deps, runs in browser, AES-256-GCM |
-| Agent | Claude `claude-sonnet-4-6` via Anthropic SDK | Streaming tool use |
-| AI SDK | Vercel AI SDK | Streaming chat UI, tool rendering |
-| Data fetching | TanStack Query | Recommended by Arkiv docs |
+| Arkiv | `@arkiv-network/sdk` | Required — entities, queries, events |
+| Off-chain storage | **IPFS + Pinata** | Encrypted bytes stored on IPFS; only CID (~59 chars) goes on-chain — keeps GLM cost minimal |
+| Encryption | Web Crypto API (native) | No deps, runs in browser, AES-256-GCM + HKDF |
+| Payload validation | Zod | Schema validation on all entity payload parses |
+| Agent | `gpt-4o-mini` via OpenAI SDK | Streaming tool use (4 read + 5 write tools) |
+| AI SDK | Vercel AI SDK v6 | Streaming chat UI, client-side tool execution |
+| Data fetching | TanStack Query | React Query for Arkiv reads with stale-time caching |
 | UI | shadcn/ui + Tailwind | Customised heavily — not default theme |
 | Deployment | Vercel | Zero config, matches Next.js App Router |
 
@@ -743,47 +771,45 @@ GRANTEE (any person, any browser, zero crypto knowledge)
 
 Given Arkiv Integration is 40% of the score, get entities right first.
 
-### Phase 1 — Arkiv Entity Foundation
-- [ ] Define `PROJECT_ATTRIBUTE = "sealvault"`
-- [ ] Implement all 4 entity schemas with correct attributes
-- [ ] Implement `.createdBy()` on every query
-- [ ] Test entity lifecycle deletion (delete item → delete grants)
-- [ ] Wire up `subscribeEntityEvents` for expiry/deletion
+### Phase 1 — Arkiv Entity Foundation ✅
+- [x] Define `PROJECT_ATTRIBUTE = "sealvault"`
+- [x] Implement all 4 entity schemas with correct attributes
+- [x] Implement `.createdBy()` on every query
+- [x] Test entity lifecycle deletion (delete item → delete grants)
+- [x] Wire up `subscribeEntityEvents` for expiry/deletion
 
-### Phase 2 — Auth & Encryption
-- [ ] Privy setup — Google + Apple + email login
-- [ ] Silent master key derivation via Privy embedded wallet
-- [ ] `encryptVaultItem` / `decryptVaultItem` functions
-- [ ] File upload → encrypt → store on Arkiv
-- [ ] Decrypt + display vault items
+### Phase 2 — Auth & Encryption ✅
+- [x] Privy setup — Google + Apple + email login
+- [x] Silent master key derivation via Privy embedded wallet
+- [x] `encryptVaultItem` / `decryptVaultItem` functions
+- [x] File upload → encrypt → IPFS → store CID on Arkiv
+- [x] Decrypt + display vault items (fetch from IPFS by CID)
 
-### Phase 3 — Magic Link Grant Flow
-- [ ] Token generation + grant entity creation
-- [ ] Magic link URL generation
-- [ ] `/view/[token]` page — query Arkiv by token hash → decrypt → display
-- [ ] Expiry state on the view page
-- [ ] Extend grant flow (`extendEntity`)
-- [ ] Revoke grant flow (`deleteEntity` → update memory)
-- [ ] Batch grant to multiple people
+### Phase 3 — Magic Link Grant Flow ✅
+- [x] Token generation + grant entity creation
+- [x] Magic link URL generation
+- [x] `/view/[token]` page — query Arkiv by token hash → fetch IPFS → decrypt → display
+- [x] Expiry state on the view page
+- [x] Extend grant flow (`extendEntity`)
+- [x] Revoke grant flow (`deleteEntity` → update memory)
+- [x] Batch grant to multiple people
 
-### Phase 4 — Agent
-- [ ] Claude agent with all tool definitions
-- [ ] Agent memory: save/query contacts and grant records
-- [ ] Chat UI with streaming (Vercel AI SDK)
-- [ ] Natural language: grant, revoke, extend, who has access, history
-- [ ] Proactive expiry alerts from live events
+### Phase 4 — Agent ✅
+- [x] Agent with all tool definitions (read + write split)
+- [x] Agent memory: save/query contacts and grant records
+- [x] Chat UI with streaming (Vercel AI SDK v6)
+- [x] Natural language: grant, revoke, extend, who has access, history
+- [x] Proactive expiry alerts from live events
 
-### Phase 5 — UI & Polish
-- [ ] Vault dashboard with category sidebar + search + sort
-- [ ] Active shares panel per document with countdown timers
-- [ ] Onboarding 3-screen flow (first visit only)
-- [ ] All error states with helpful messages
-- [ ] Mobile responsive
-- [ ] Remove all crypto language from UI
+### Phase 5 — UI & Polish ✅
+- [x] Vault dashboard with category sidebar + search + sort
+- [x] Active shares panel per document with countdown timers
+- [x] Onboarding 3-screen flow (first visit only)
+- [x] All error states with helpful messages
+- [x] Remove all crypto language from UI
 
 ### Phase 6 — Submission
 - [ ] README: what it is, setup steps, architecture overview, how Arkiv is used
-- [ ] Full TypeScript types on all entity schemas
 - [ ] Public GitHub repo
 - [ ] Deploy to Vercel → working demo link
 - [ ] 2–3 min demo video: Alice signs in → uploads → agent grants → Bob views via link → link expires
