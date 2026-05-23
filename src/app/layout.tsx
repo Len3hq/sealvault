@@ -28,6 +28,26 @@ export default function RootLayout({
         <Providers>
           <Nav />
           {children}
+          <footer className="border-t border-sv-border px-6 py-4 flex items-center justify-end text-[11px] text-sv-dim">
+            Built by{" "}
+            <a
+              href="https://x.com/_christian_obi"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-1 text-sv-blue hover:text-sv-blue-li transition-colors duration-150"
+            >
+              Christian
+            </a>
+            <span className="mx-1">&</span>
+            <a
+              href="https://x.com/danny_4reel"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sv-blue hover:text-sv-blue-li transition-colors duration-150"
+            >
+              Daniel
+            </a>
+          </footer>
         </Providers>
       </body>
     </html>
