@@ -8,6 +8,7 @@ import {
   createAccessGrant,
   createGrantRecord,
 } from "@/lib/arkiv/mutations"
+import { uploadToIPFS } from "@/lib/ipfs"
 import type { WalletClient, VaultItemPayload, AccessGrantPayload } from "@/lib/arkiv/types"
 import type { VaultCategory } from "@/lib/arkiv/constants"
 import { GRANT_STATUS } from "@/lib/arkiv/constants"
@@ -65,16 +66,18 @@ export async function createMagicLinkGrant(
   const token = generateGrantToken()
   const tokenHash = hashGrantToken(token)
 
-  // Step 3: Re-encrypt content under the token key
-  const grantCrypto = await encryptForGrant(
+  // Step 3: Re-encrypt content under the token key, upload ciphertext to IPFS
+  const { ciphertext: grantCiphertext, grantIv } = await encryptForGrant(
     new Uint8Array(decrypted.buffer) as Uint8Array<ArrayBuffer>,
     token
   )
+  const grantCID = await uploadToIPFS(grantCiphertext)
 
   // Embed document metadata in the grant payload so grantees
   // can render the document without querying the vault item entity
   const accessGrantPayload: AccessGrantPayload = {
-    ...grantCrypto,
+    grantCID,
+    grantIv,
     label,
     fileType,
   }

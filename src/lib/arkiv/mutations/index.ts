@@ -1,4 +1,4 @@
-export { createVaultItem, deleteVaultItem, MAX_VAULT_ITEM_BYTES } from "./vault-items"
+export { createVaultItem, deleteVaultItem } from "./vault-items"
 
 export {
   createAccessGrant,

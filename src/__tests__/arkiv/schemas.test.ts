@@ -26,7 +26,7 @@ function decodePayload(payload: Uint8Array): Record<string, unknown> {
 }
 
 const mockEncryptedPayload = {
-  ciphertext: "0xabc123",
+  cid: "QmTestCid1234567890abcdef",
   iv: "0xdeadbeef",
   wrappedItemKey: "0xcafe",
   wrapIv: "0xfeed",
@@ -91,7 +91,7 @@ describe("buildVaultItemEntity", () => {
 
   it("serialises the encrypted payload into the payload bytes", () => {
     const parsed = decodePayload(entity.payload)
-    expect(parsed.ciphertext).toBe("0xabc123")
+    expect(parsed.cid).toBe("QmTestCid1234567890abcdef")
     expect(parsed.iv).toBe("0xdeadbeef")
     expect(parsed.wrappedItemKey).toBe("0xcafe")
     expect(parsed.version).toBe(1)
@@ -107,7 +107,7 @@ describe("buildVaultItemEntity", () => {
 describe("buildAccessGrantEntity", () => {
   const params = {
     accessGrantPayload: {
-      grantCiphertext: "0xgrantcipher",
+      grantCID: "QmGrantCid5678abcdef",
       grantIv: "0xgrantiv",
     },
     tokenHash: "0xtokenhash",
@@ -171,7 +171,7 @@ describe("buildAccessGrantEntity", () => {
 
   it("encodes grant payload into bytes", () => {
     const parsed = decodePayload(entity.payload)
-    expect(parsed.grantCiphertext).toBe("0xgrantcipher")
+    expect(parsed.grantCID).toBe("QmGrantCid5678abcdef")
     expect(parsed.grantIv).toBe("0xgrantiv")
   })
 })

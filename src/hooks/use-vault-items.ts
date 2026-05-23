@@ -13,5 +13,7 @@ export function useVaultItems(options?: { category?: VaultCategory }) {
     queryFn: () => queryVaultItems(publicClient, walletAddress!, options),
     enabled: !!walletAddress,
     select: (result) => result.entities,
+    staleTime: 5 * 60 * 1000,      // treat chain data as fresh for 5 min
+    refetchOnWindowFocus: false,    // don't re-hit the chain on tab switch
   })
 }

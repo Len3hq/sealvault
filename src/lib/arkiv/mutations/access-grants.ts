@@ -1,7 +1,7 @@
 import { jsonToPayload } from "@arkiv-network/sdk"
 import type { Entity } from "@arkiv-network/sdk"
 import { buildAccessGrantEntity, buildGrantRecordEntity } from "../schemas"
-import type { GrantStatus } from "../constants"
+import { DEFAULT_TX_PARAMS, type GrantStatus } from "../constants"
 import type { WalletClient, BuildAccessGrantParams, BuildGrantRecordParams } from "../types"
 
 export async function createAccessGrant(
@@ -9,7 +9,7 @@ export async function createAccessGrant(
   params: BuildAccessGrantParams
 ): Promise<{ entityKey: string }> {
   const entity = buildAccessGrantEntity(params)
-  const result = await walletClient.createEntity(entity)
+  const result = await walletClient.createEntity(entity, DEFAULT_TX_PARAMS)
   return { entityKey: result.entityKey }
 }
 
@@ -17,7 +17,7 @@ export async function revokeAccessGrant(
   walletClient: WalletClient,
   grantEntityKey: string
 ): Promise<void> {
-  await walletClient.deleteEntity({ entityKey: grantEntityKey as `0x${string}` })
+  await walletClient.deleteEntity({ entityKey: grantEntityKey as `0x${string}` }, DEFAULT_TX_PARAMS)
 }
 
 export async function extendAccessGrant(
@@ -25,10 +25,10 @@ export async function extendAccessGrant(
   grantEntityKey: string,
   additionalSeconds: number
 ): Promise<void> {
-  await walletClient.extendEntity({
-    entityKey: grantEntityKey as `0x${string}`,
-    expiresIn: additionalSeconds,
-  })
+  await walletClient.extendEntity(
+    { entityKey: grantEntityKey as `0x${string}`, expiresIn: additionalSeconds },
+    DEFAULT_TX_PARAMS
+  )
 }
 
 export async function createGrantRecord(
@@ -36,7 +36,7 @@ export async function createGrantRecord(
   params: BuildGrantRecordParams
 ): Promise<{ entityKey: string }> {
   const entity = buildGrantRecordEntity(params)
-  const result = await walletClient.createEntity(entity)
+  const result = await walletClient.createEntity(entity, DEFAULT_TX_PARAMS)
   return { entityKey: result.entityKey }
 }
 
@@ -61,13 +61,16 @@ export async function updateGrantRecordStatus(
     a.key === "status" ? { key: "status", value: status } : a
   )
 
-  await walletClient.updateEntity({
-    entityKey: entity.key,
-    payload: jsonToPayload(newPayload),
-    contentType: entity.contentType ?? "application/json",
-    attributes: updatedAttributes,
-    expiresIn: remainingSeconds,
-  })
+  await walletClient.updateEntity(
+    {
+      entityKey: entity.key,
+      payload: jsonToPayload(newPayload),
+      contentType: entity.contentType ?? "application/json",
+      attributes: updatedAttributes,
+      expiresIn: remainingSeconds,
+    },
+    DEFAULT_TX_PARAMS
+  )
 }
 
 export async function batchCreateAccessGrants(
@@ -75,6 +78,6 @@ export async function batchCreateAccessGrants(
   grants: BuildAccessGrantParams[]
 ): Promise<string[]> {
   const creates = grants.map(buildAccessGrantEntity)
-  const result = await walletClient.mutateEntities({ creates })
+  const result = await walletClient.mutateEntities({ creates }, DEFAULT_TX_PARAMS)
   return result.createdEntities.map(String)
 }

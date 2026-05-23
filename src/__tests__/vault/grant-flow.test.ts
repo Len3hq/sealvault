@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll } from "vitest"
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest"
 import { createMagicLinkGrant } from "@/lib/vault/grant-flow"
 import { encryptVaultItem, decryptGrant } from "@/lib/crypto"
 import { deriveMasterKey } from "@/lib/crypto/keys"
@@ -13,12 +13,21 @@ vi.mock("@/lib/arkiv/mutations", () => ({
   createGrantRecord: vi.fn().mockResolvedValue({ entityKey: "0xRecordKey" }),
 }))
 
+// fetchFromIPFS is called by decryptVaultItem (for vault item ciphertext).
+// uploadToIPFS is called by createMagicLinkGrant (for grant ciphertext).
+vi.mock("@/lib/ipfs", () => ({
+  fetchFromIPFS: vi.fn(),
+  uploadToIPFS: vi.fn().mockResolvedValue("QmGrantCid"),
+}))
+
 import { createAccessGrant, createGrantRecord } from "@/lib/arkiv/mutations"
+import { fetchFromIPFS, uploadToIPFS } from "@/lib/ipfs"
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 let masterKey: CryptoKey
-let encryptedPayload: VaultItemPayload
+let vaultItemPayload: VaultItemPayload
+let vaultCiphertext: Uint8Array<ArrayBuffer>
 const DOCUMENT_CONTENT = "Patient: John Doe\nDiagnosis: Annual checkup — all clear."
 
 function makeMockWalletClient(): WalletClient {
@@ -44,17 +53,29 @@ const BASE_PARAMS = {
 
 beforeAll(async () => {
   masterKey = await deriveMasterKey("0x" + "ee".repeat(65))
-  encryptedPayload = await encryptVaultItem(DOCUMENT_CONTENT, masterKey)
+  const { ciphertext, ...keyMaterial } = await encryptVaultItem(DOCUMENT_CONTENT, masterKey)
+  vaultCiphertext = ciphertext
+  vaultItemPayload = { cid: "QmVaultCid", ...keyMaterial }
 })
 
 // ─── createMagicLinkGrant ─────────────────────────────────────────────────────
 
 describe("createMagicLinkGrant", () => {
+  // Each test needs fetchFromIPFS to return the vault ciphertext (for decryptVaultItem)
+  // and uploadToIPFS to return a fake grant CID (for the grant re-encryption step).
+  beforeEach(() => {
+    vi.mocked(fetchFromIPFS).mockImplementation(async (cid) => {
+      if (cid === "QmVaultCid") return vaultCiphertext
+      throw new Error(`Unexpected CID in test: ${cid}`)
+    })
+    vi.mocked(uploadToIPFS).mockResolvedValue("QmGrantCid")
+  })
+
   it("returns a token, tokenHash, grantEntityKey, and grantRecordKey", async () => {
     const wallet = makeMockWalletClient()
     const result = await createMagicLinkGrant({
       ...BASE_PARAMS,
-      vaultItemPayload: encryptedPayload,
+      vaultItemPayload,
       masterKey,
       walletClient: wallet,
     })
@@ -69,7 +90,7 @@ describe("createMagicLinkGrant", () => {
     const wallet = makeMockWalletClient()
     const { token } = await createMagicLinkGrant({
       ...BASE_PARAMS,
-      vaultItemPayload: encryptedPayload,
+      vaultItemPayload,
       masterKey,
       walletClient: wallet,
     })
@@ -80,7 +101,7 @@ describe("createMagicLinkGrant", () => {
     const wallet = makeMockWalletClient()
     const { token, tokenHash } = await createMagicLinkGrant({
       ...BASE_PARAMS,
-      vaultItemPayload: encryptedPayload,
+      vaultItemPayload,
       masterKey,
       walletClient: wallet,
     })
@@ -92,7 +113,7 @@ describe("createMagicLinkGrant", () => {
     const wallet = makeMockWalletClient()
     const { tokenHash } = await createMagicLinkGrant({
       ...BASE_PARAMS,
-      vaultItemPayload: encryptedPayload,
+      vaultItemPayload,
       masterKey,
       walletClient: wallet,
     })
@@ -113,7 +134,7 @@ describe("createMagicLinkGrant", () => {
 
     await createMagicLinkGrant({
       ...BASE_PARAMS,
-      vaultItemPayload: encryptedPayload,
+      vaultItemPayload,
       masterKey,
       walletClient: wallet,
     })
@@ -135,7 +156,7 @@ describe("createMagicLinkGrant", () => {
 
     await createMagicLinkGrant({
       ...BASE_PARAMS,
-      vaultItemPayload: encryptedPayload,
+      vaultItemPayload,
       masterKey,
       walletClient: wallet,
     })
@@ -152,7 +173,7 @@ describe("createMagicLinkGrant", () => {
 
     const result = await createMagicLinkGrant({
       ...BASE_PARAMS,
-      vaultItemPayload: encryptedPayload,
+      vaultItemPayload,
       masterKey,
       walletClient: wallet,
     })
@@ -163,28 +184,36 @@ describe("createMagicLinkGrant", () => {
 
   it("end-to-end: token from result can decrypt the grant payload", async () => {
     vi.mocked(createAccessGrant).mockClear()
-    const wallet = makeMockWalletClient()
+    // Capture the grant ciphertext uploaded to IPFS so decryptGrant can use it
+    let capturedGrantBytes: Uint8Array<ArrayBuffer> | undefined
+    vi.mocked(uploadToIPFS).mockImplementationOnce(async (bytes) => {
+      capturedGrantBytes = bytes
+      return "QmGrantCid"
+    })
+    vi.mocked(fetchFromIPFS).mockImplementation(async (cid) => {
+      if (cid === "QmVaultCid") return vaultCiphertext
+      if (cid === "QmGrantCid" && capturedGrantBytes) return capturedGrantBytes
+      throw new Error(`Unexpected CID: ${cid}`)
+    })
 
+    const wallet = makeMockWalletClient()
     const { token } = await createMagicLinkGrant({
       ...BASE_PARAMS,
-      vaultItemPayload: encryptedPayload,
+      vaultItemPayload,
       masterKey,
       walletClient: wallet,
     })
 
-    // Recover what was stored in the grant entity
     const grantPayload = vi.mocked(createAccessGrant).mock.calls[0][1].accessGrantPayload
     const decrypted = await decryptGrant(grantPayload, token)
-    const text = new TextDecoder().decode(decrypted)
-
-    expect(text).toBe(DOCUMENT_CONTENT)
+    expect(new TextDecoder().decode(decrypted)).toBe(DOCUMENT_CONTENT)
   })
 
   it("different calls produce different tokens", async () => {
     const wallet = makeMockWalletClient()
     const [r1, r2] = await Promise.all([
-      createMagicLinkGrant({ ...BASE_PARAMS, vaultItemPayload: encryptedPayload, masterKey, walletClient: wallet }),
-      createMagicLinkGrant({ ...BASE_PARAMS, vaultItemPayload: encryptedPayload, masterKey, walletClient: wallet }),
+      createMagicLinkGrant({ ...BASE_PARAMS, vaultItemPayload, masterKey, walletClient: wallet }),
+      createMagicLinkGrant({ ...BASE_PARAMS, vaultItemPayload, masterKey, walletClient: wallet }),
     ])
     expect(r1.token).not.toBe(r2.token)
     expect(r1.tokenHash).not.toBe(r2.tokenHash)
@@ -197,7 +226,7 @@ describe("createMagicLinkGrant", () => {
     await expect(
       createMagicLinkGrant({
         ...BASE_PARAMS,
-        vaultItemPayload: encryptedPayload,
+        vaultItemPayload,
         masterKey,
         walletClient: wallet,
       })

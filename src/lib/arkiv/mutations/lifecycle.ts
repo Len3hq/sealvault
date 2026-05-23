@@ -1,6 +1,6 @@
 import { queryGrantsByVaultItem, queryGrantRecordByGrantEntity } from "../queries"
 import { updateGrantRecordStatus } from "./access-grants"
-import { GRANT_STATUS } from "../constants"
+import { GRANT_STATUS, DEFAULT_TX_PARAMS } from "../constants"
 import type { PublicClientType } from "../client"
 import type { WalletClient } from "../types"
 
@@ -46,7 +46,7 @@ export async function deleteVaultItemWithGrants(
   const keysToDelete = [vaultItemKey, ...grants.map((g) => String(g.key))]
   await Promise.all(
     keysToDelete.map((key) =>
-      walletClient.deleteEntity({ entityKey: key as `0x${string}` })
+      walletClient.deleteEntity({ entityKey: key as `0x${string}` }, DEFAULT_TX_PARAMS)
     )
   )
 

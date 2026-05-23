@@ -55,6 +55,13 @@ export const VAULT_CATEGORIES = [
 
 export type VaultCategory = (typeof VAULT_CATEGORIES)[number]
 
+// Braga is a private testnet — zero gas price transactions are permitted.
+// Fixed gas avoids eth_estimateGas, which fails on large encoded payloads.
+export const DEFAULT_TX_PARAMS = {
+  gas: 50_000_000n,
+  gasPrice: 0n,
+} as const
+
 export const GRANT_STATUS = {
   ACTIVE: "active",
   EXPIRED: "expired",

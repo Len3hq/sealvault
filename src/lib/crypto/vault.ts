@@ -1,10 +1,21 @@
 import type { VaultItemPayload } from "@/lib/arkiv/types"
+import { fetchFromIPFS } from "@/lib/ipfs"
 import { bufToHex, hexToBytes } from "./keys"
 
+export interface EncryptedVaultItem {
+  ciphertext: Uint8Array<ArrayBuffer>
+  iv: string
+  wrappedItemKey: string
+  wrapIv: string
+  version: number
+}
+
+// Returns raw ciphertext bytes separately from the key material.
+// Caller uploads ciphertext to IPFS then stores { cid, iv, wrappedItemKey, wrapIv, version } on-chain.
 export async function encryptVaultItem(
   content: string | ArrayBuffer,
   masterKey: CryptoKey
-): Promise<VaultItemPayload> {
+): Promise<EncryptedVaultItem> {
   const itemKey = await crypto.subtle.generateKey(
     { name: "AES-GCM", length: 256 },
     true,
@@ -30,7 +41,7 @@ export async function encryptVaultItem(
   })
 
   return {
-    ciphertext: bufToHex(ciphertext),
+    ciphertext: new Uint8Array(ciphertext),
     iv: bufToHex(iv),
     wrappedItemKey: bufToHex(wrappedItemKey),
     wrapIv: bufToHex(wrapIv),
@@ -38,6 +49,9 @@ export async function encryptVaultItem(
   }
 }
 
+// Fetches ciphertext from IPFS using payload.cid, then decrypts with the master key.
+// Legacy guard: if payload still has the old `ciphertext` hex field (pre-IPFS records),
+// decrypts inline without an IPFS fetch.
 export async function decryptVaultItem(
   payload: VaultItemPayload,
   masterKey: CryptoKey
@@ -52,10 +66,15 @@ export async function decryptVaultItem(
     ["decrypt"]
   )
 
+  const ciphertext =
+    "cid" in payload
+      ? await fetchFromIPFS(payload.cid)
+      : hexToBytes((payload as unknown as { ciphertext: string }).ciphertext)
+
   const plaintext = await crypto.subtle.decrypt(
     { name: "AES-GCM", iv: hexToBytes(payload.iv) },
     itemKey,
-    hexToBytes(payload.ciphertext)
+    ciphertext
   )
 
   return new Uint8Array(plaintext)

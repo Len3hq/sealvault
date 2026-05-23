@@ -5,14 +5,32 @@ import {
   useContext,
   useState,
   useEffect,
+  useRef,
   useCallback,
   type ReactNode,
 } from "react"
-import { usePrivy, useWallets } from "@privy-io/react-auth"
+import { usePrivy, useWallets, useCreateWallet, getEmbeddedConnectedWallet } from "@privy-io/react-auth"
 import { deriveMasterKey, SIGN_MESSAGE } from "@/lib/crypto/keys"
 import { publicClient } from "@/lib/arkiv/client"
 
 const SIGN_TIMEOUT_MS = 15_000
+
+// Cache key: scoped to the wallet address so different accounts don't share cached signatures.
+function sigCacheKey(address: string) {
+  return `sv_sig_${address}`
+}
+
+function getCachedSignature(address: string): string | null {
+  try { return sessionStorage.getItem(sigCacheKey(address)) } catch { return null }
+}
+
+function setCachedSignature(address: string, sig: string) {
+  try { sessionStorage.setItem(sigCacheKey(address), sig) } catch { /* private mode */ }
+}
+
+function clearCachedSignature(address: string) {
+  try { sessionStorage.removeItem(sigCacheKey(address)) } catch { /* ignore */ }
+}
 
 function signWithTimeout(
   provider: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> },
@@ -52,26 +70,34 @@ const VaultAuthContext = createContext<VaultAuthState | null>(null)
 export function VaultAuthProvider({ children }: { children: ReactNode }) {
   const { ready, authenticated, user, login, logout } = usePrivy()
   const { wallets } = useWallets()
+  const { createWallet } = useCreateWallet()
   const [masterKey, setMasterKey] = useState<CryptoKey | null>(null)
   const [isDerivingKey, setIsDerivingKey] = useState(false)
   const [keyError, setKeyError] = useState<string | null>(null)
+  const derivingRef = useRef(false)
 
-  const embeddedWallet = wallets.find(
-    (w) => w.walletClientType === "privy" || w.walletClientType === "privy-v2"
-  )
+  const embeddedWallet = getEmbeddedConnectedWallet(wallets)
 
   useEffect(() => {
-    // isDerivingKey (state) is the mutex — stable across Fast Refresh cycles
-    // unlike useRef which creates a new object per instance.
-    if (!authenticated || !embeddedWallet || masterKey || isDerivingKey) return
+    if (!authenticated || !embeddedWallet || masterKey || derivingRef.current) return
 
-    let cancelled = false
+    derivingRef.current = true
     setIsDerivingKey(true)
     setKeyError(null)
 
-    embeddedWallet
-      .getEthereumProvider()
-      .then((provider) => signWithTimeout(provider, embeddedWallet.address))
+    let cancelled = false
+    const address = embeddedWallet.address
+
+    // Fast path: re-derive from session-cached signature (no network call).
+    const cached = getCachedSignature(address)
+    const sigPromise: Promise<string> = cached
+      ? Promise.resolve(cached)
+      : embeddedWallet
+          .getEthereumProvider()
+          .then((provider) => signWithTimeout(provider, address))
+          .then((sig) => { setCachedSignature(address, sig); return sig })
+
+    sigPromise
       .then((signature) => {
         if (cancelled) return
         return deriveMasterKey(signature)
@@ -81,32 +107,53 @@ export function VaultAuthProvider({ children }: { children: ReactNode }) {
         setMasterKey(key as CryptoKey)
       })
       .catch((err) => {
-        if (!cancelled)
+        if (!cancelled) {
+          // Clear stale cache on failure so next attempt re-signs.
+          clearCachedSignature(address)
           setKeyError(err instanceof Error ? err.message : "Failed to unlock vault")
+        }
       })
       .finally(() => {
-        // Unconditional — clears the guard even when cancelled so the next
-        // effect run can start a fresh derivation.
+        derivingRef.current = false
         setIsDerivingKey(false)
       })
 
-    return () => {
-      cancelled = true
-    }
-  }, [authenticated, embeddedWallet, masterKey, isDerivingKey])
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authenticated, embeddedWallet, masterKey])
+
+  useEffect(() => {
+    if (!ready || !authenticated || embeddedWallet || masterKey || derivingRef.current) return
+    const timer = setTimeout(() => {
+      createWallet().catch(() => {})
+    }, 3_000)
+    return () => clearTimeout(timer)
+  }, [ready, authenticated, embeddedWallet, masterKey, createWallet])
+
+  useEffect(() => {
+    if (!ready || !authenticated || embeddedWallet || masterKey) return
+    const timer = setTimeout(() => {
+      setKeyError("Vault wallet not found — please refresh and sign in again.")
+    }, 35_000)
+    return () => clearTimeout(timer)
+  }, [ready, authenticated, embeddedWallet, masterKey])
 
   const retryKeyDerivation = useCallback(() => {
+    if (embeddedWallet) clearCachedSignature(embeddedWallet.address)
     setKeyError(null)
     setMasterKey(null)
+    derivingRef.current = false
     setIsDerivingKey(false)
-  }, [])
+  }, [embeddedWallet])
 
   const handleLogout = useCallback(async () => {
+    if (embeddedWallet) clearCachedSignature(embeddedWallet.address)
     setMasterKey(null)
     setKeyError(null)
+    derivingRef.current = false
     setIsDerivingKey(false)
     await logout()
-  }, [logout])
+  }, [logout, embeddedWallet])
 
   return (
     <VaultAuthContext.Provider

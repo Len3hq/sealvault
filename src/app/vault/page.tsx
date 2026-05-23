@@ -8,8 +8,9 @@ import { useVaultItems } from "@/hooks/use-vault-items"
 import { useCreateGrant } from "@/hooks/use-grant-actions"
 import { queryVaultItemByKey } from "@/lib/arkiv/queries"
 import { deleteVaultItemWithGrants } from "@/lib/arkiv/mutations"
-import { createVaultItem, MAX_VAULT_ITEM_BYTES } from "@/lib/arkiv/mutations"
+import { createVaultItem } from "@/lib/arkiv/mutations"
 import { encryptVaultItem } from "@/lib/crypto"
+import { uploadToIPFS } from "@/lib/ipfs"
 import { getAttributeValue } from "@/lib/arkiv/schemas"
 import { VAULT_CATEGORIES } from "@/lib/arkiv/constants"
 import type { VaultCategory } from "@/lib/arkiv/constants"
@@ -68,26 +69,31 @@ function UploadDialog({
   const [file, setFile] = useState<File | null>(null)
   const [label, setLabel] = useState("")
   const [category, setCategory] = useState<VaultCategory>("personal")
-  const [uploading, setUploading] = useState(false)
+  const [uploadStep, setUploadStep] = useState<"idle" | "encrypting" | "uploading" | "saving">("idle")
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const uploading = uploadStep !== "idle"
+  const uploadLabel = uploadStep === "encrypting" ? "Encrypting…"
+    : uploadStep === "uploading" ? "Uploading…"
+    : uploadStep === "saving"    ? "Saving…"
+    : "Upload"
+
   async function handleUpload() {
     if (!file) return
-    if (file.size > MAX_VAULT_ITEM_BYTES) {
-      setError(`File too large — maximum size is ${Math.round(MAX_VAULT_ITEM_BYTES / 1024)} KB`)
-      return
-    }
     if (!masterKey) { setError("Vault is locked — refresh and sign in again"); return }
     if (!walletAddress) { setError("No wallet address found — please reconnect"); return }
     if (!walletClient) { setError("Wallet not ready — wait a moment and retry"); return }
-    setUploading(true)
     setError(null)
     try {
+      setUploadStep("encrypting")
       const content = await file.arrayBuffer()
-      const encryptedPayload = await encryptVaultItem(content, masterKey)
+      const { ciphertext, ...keyMaterial } = await encryptVaultItem(content, masterKey)
+      setUploadStep("uploading")
+      const cid = await uploadToIPFS(ciphertext)
+      setUploadStep("saving")
       await createVaultItem(walletClient as unknown as WalletClient, {
-        encryptedPayload,
+        encryptedPayload: { cid, ...keyMaterial },
         label: label || file.name,
         category,
         fileType: file.type || "application/octet-stream",
@@ -99,7 +105,7 @@ function UploadDialog({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed")
     } finally {
-      setUploading(false)
+      setUploadStep("idle")
     }
   }
 
@@ -126,15 +132,12 @@ function UploadDialog({
         {file ? (
           <div className="space-y-1">
             <p className="text-slate-200 font-medium">{file.name}</p>
-            <p className={`text-xs ${file.size > MAX_VAULT_ITEM_BYTES ? "text-rose-400" : "text-slate-400"}`}>
-              {formatSize(file.size)}
-              {file.size > MAX_VAULT_ITEM_BYTES && ` — exceeds ${Math.round(MAX_VAULT_ITEM_BYTES / 1024)} KB limit`}
-            </p>
+            <p className="text-xs text-slate-400">{formatSize(file.size)}</p>
           </div>
         ) : (
           <div className="space-y-1">
             <p className="text-slate-300 text-sm">Click to choose a file</p>
-            <p className="text-xs text-slate-500">Any type · max {Math.round(MAX_VAULT_ITEM_BYTES / 1024)} KB</p>
+            <p className="text-xs text-slate-500">PDF, image, video — any type</p>
           </div>
         )}
       </div>
@@ -184,7 +187,7 @@ function UploadDialog({
           disabled={!file || uploading}
           className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {uploading ? "Encrypting…" : "Upload"}
+          {uploadLabel}
         </button>
       </div>
     </Overlay>

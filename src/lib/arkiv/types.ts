@@ -32,7 +32,7 @@ export interface WalletClient {
 // ─── Vault Item ───────────────────────────────────────────────────────────────
 
 export interface VaultItemPayload {
-  ciphertext: string
+  cid: string             // IPFS CID (~59 chars) — tiny on-chain footprint
   iv: string
   wrappedItemKey: string
   wrapIv: string
@@ -54,10 +54,10 @@ export interface BuildVaultItemParams extends VaultItemMeta {
 // ─── Access Grant ─────────────────────────────────────────────────────────────
 
 export interface AccessGrantPayload {
-  grantCiphertext: string
+  grantCID: string        // IPFS CID for the re-encrypted grant ciphertext
   grantIv: string
-  label?: string    // document display name shown to grantee
-  fileType?: string // MIME type for rendering (e.g. "application/pdf")
+  label?: string
+  fileType?: string
 }
 
 export interface BuildAccessGrantParams {

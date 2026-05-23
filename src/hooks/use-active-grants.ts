@@ -12,6 +12,7 @@ export function useActiveGrants() {
     queryFn: () => queryActiveGrantsByOwner(publicClient, walletAddress!),
     enabled: !!walletAddress,
     select: (result) => result.entities,
-    staleTime: 30_000,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   })
 }
