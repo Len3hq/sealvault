@@ -43,7 +43,7 @@ export const BRAGA = {
   chainId: 60138453102,
   rpcUrl: "https://braga.hoodi.arkiv.network/rpc",
   wsUrl: "wss://braga.hoodi.arkiv.network/rpc/ws",
-  explorerUrl: "https://explorer.braga.hoodi.arkiv.network",
+  explorerUrl: "https://data.arkiv.network",
   faucetUrl: "https://braga.hoodi.arkiv.network/faucet",
 } as const
 
