@@ -15,30 +15,7 @@ The core insight: **Arkiv's TTL is the revocation mechanism**. When an access gr
 
 ---
 
-## Scoring Rubric Alignment
-
-The hackathon weights: **Arkiv Integration 40% · Functionality 30% · Design & UX 20% · Code Quality 10%**
-
-| Criterion | Target Score | How We Hit It |
-|---|---|---|
-| Entity schema design | 5 | 4 distinct typed entities, all queryable attributes |
-| Query usage | 5 | Multiple combined filters + sorting on every query |
-| Ownership model | 5 | User wallet-bound, edit/delete controls in UI |
-| Entity relationships | 5 | Explicit `parent_key` links + lifecycle deletion |
-| Expiration dates | 5 | Differentiated: 10yr vault, variable grants, 2yr memory |
-| Advanced features | 5 | Live events + entity extension + batch grants + owner attribute |
-| Core flows | 5 | Upload → Encrypt → Grant → View → Expire — all tested |
-| Filtering & search | 5 | Category, date range, label search, active/expired toggle |
-| Wallet integration | 5 | Privy: social login, zero crypto UX for owner |
-| Blockchain abstraction | 5 | Magic link: grantees need no wallet, no app, no account |
-| Visual design | 4–5 | Distinctive dark vault aesthetic, not default shadcn |
-| README | 5 | Architecture overview + setup + Arkiv integration explained |
-
----
-
 ## Biggest Design Decision: No Crypto UX
-
-The rubric explicitly scores blockchain abstraction: *"1 = technical knowledge required → 5 = users unaware of web3."* We need a 5 on both sides — for the owner and for the grantee.
 
 ### Owner Login — Privy (Social Login)
 
@@ -324,7 +301,7 @@ Tags are stored as individual numbered attributes (not comma-joined) so each tag
 
 ## Entity Lifecycle Management
 
-When a vault item is deleted, all its child grant entities must be deleted immediately. Otherwise grants point at a missing item — orphaned data costs points on the rubric.
+When a vault item is deleted, all its child grant entities must be deleted immediately. Otherwise grants point at a missing item — orphaned data and broken references.
 
 ```typescript
 // Client: POST /api/relay/vault-item { vaultItemKey } + auth headers
@@ -831,7 +808,7 @@ Given Arkiv Integration is 40% of the score, get entities right first.
 
 ---
 
-## Demo Script (What Judges See)
+## Demo Script
 
 1. **Alice opens the app** → clicks "Continue with Google" → vault opens instantly
 2. **Alice uploads "Blood Work 2026.pdf"** → encrypted in-browser → stored on Arkiv → appears in vault
