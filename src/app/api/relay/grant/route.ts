@@ -64,6 +64,8 @@ export async function POST(req: NextRequest) {
     grantedByAddress: ownerAddress,
     purpose: body.purpose,
     durationSeconds: body.durationSeconds,
+    label: body.accessGrantPayload.label ?? "",
+    granteeName: body.granteeName,
   })
 
   const { entityKey: grantRecordKey } = await createGrantRecord(walletClient, {

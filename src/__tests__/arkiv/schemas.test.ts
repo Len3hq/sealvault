@@ -115,6 +115,8 @@ describe("buildAccessGrantEntity", () => {
     grantedByAddress: "0xowner",
     purpose: "Annual checkup",
     durationSeconds: 172800, // 48h
+    label: "Medical Report",
+    granteeName: "Dr. Osei",
   }
 
   const entity = buildAccessGrantEntity(params)

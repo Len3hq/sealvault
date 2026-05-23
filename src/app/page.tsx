@@ -1,10 +1,13 @@
 "use client"
 
 import Link from "next/link"
+import { useMemo } from "react"
 import { useVaultAuth } from "@/hooks/use-vault-auth"
 import { useVaultItems } from "@/hooks/use-vault-items"
 import { useActiveGrants } from "@/hooks/use-active-grants"
 import { getAttributeValue } from "@/lib/arkiv/schemas"
+import { TxRow } from "@/components/tx-row"
+import type { TxEntry } from "@/components/tx-row"
 import {
   FileText, ImageIcon, Paperclip,
   FolderOpen, Share2, Bot,
@@ -126,6 +129,40 @@ export default function Home() {
   const { ready, isAuthenticated, isDerivingKey, login, walletAddress } = useVaultAuth()
   const { data: vaultItems } = useVaultItems()
   const { data: activeGrants } = useActiveGrants()
+
+  const transactions = useMemo<TxEntry[]>(() => {
+    const uploads: TxEntry[] = (vaultItems ?? []).map((e) => {
+      const a = (e.attributes ?? []) as Array<{ key: string; value: string | number }>
+      return {
+        id:        `upload-${String(e.key)}`,
+        type:      "UPLOAD",
+        label:     String(getAttributeValue(a, "label") ?? "Untitled document"),
+        timestamp: (getAttributeValue(a, "created_at") as number | undefined) ?? 0,
+        entityKey: String(e.key),
+      }
+    })
+
+    const shares: TxEntry[] = (activeGrants ?? []).map((e) => {
+      const a = (e.attributes ?? []) as Array<{ key: string; value: string | number }>
+      const docLabel    = getAttributeValue(a, "label") as string | undefined
+      const granteeName = getAttributeValue(a, "grantee_name") as string | undefined
+      const displayLabel = docLabel
+        ? granteeName ? `${docLabel} → ${granteeName}` : docLabel
+        : String(getAttributeValue(a, "purpose") ?? "Shared document")
+      return {
+        id:        `share-${String(e.key)}`,
+        type:      "SHARE",
+        label:     displayLabel,
+        timestamp: (getAttributeValue(a, "granted_at") as number | undefined) ?? 0,
+        entityKey: String(e.key),
+      }
+    })
+
+    return [...uploads, ...shares]
+      .filter((t) => t.timestamp > 0)
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 10)
+  }, [vaultItems, activeGrants])
 
   if (!ready) return <Spinner />
   if (isAuthenticated && isDerivingKey) return <Spinner label="Unlocking your vault…" />
@@ -301,8 +338,32 @@ export default function Home() {
         </section>
       )}
 
-      {/* Quick actions */}
+      {/* Recent transactions */}
       <section className="space-y-3 animate-slide-up stagger-2">
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] text-sv-dim uppercase tracking-widest">[ RECENT TRANSACTIONS ]</p>
+          {transactions.length > 0 && (
+            <Link href="/transactions" className="text-xs text-sv-blue hover:text-sv-blue-li transition-colors">
+              View all →
+            </Link>
+          )}
+        </div>
+
+        {transactions.length === 0 ? (
+          <div className="border border-sv-border px-4 py-8 text-center">
+            <p className="text-xs text-sv-muted">No transactions yet — upload a document to get started.</p>
+          </div>
+        ) : (
+          <div className="border border-sv-border divide-y divide-sv-border">
+            {transactions.map((tx) => (
+              <TxRow key={tx.id} tx={tx} compact />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Quick actions */}
+      <section className="space-y-3 animate-slide-up stagger-3">
         <p className="text-[11px] text-sv-dim uppercase tracking-widest">[ QUICK ACTIONS ]</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-0 border border-sv-border divide-y sm:divide-y-0 sm:divide-x divide-sv-border">
           <QuickAction

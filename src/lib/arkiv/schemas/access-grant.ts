@@ -13,6 +13,8 @@ export function buildAccessGrantEntity(
     grantedByAddress,
     purpose,
     durationSeconds,
+    label,
+    granteeName,
   } = params
 
   // Clamp to [GRANT_MIN, GRANT_MAX] — prevents zero-TTL or runaway grants
@@ -33,9 +35,11 @@ export function buildAccessGrantEntity(
       { key: "token_hash",  value: tokenHash },
       { key: "parent_key",  value: parentVaultItemKey },
       { key: "granted_by",  value: grantedByAddress },
-      { key: "purpose",     value: purpose },
-      { key: "granted_at",  value: now },
-      { key: "expires_at",  value: now + clampedDuration * 1000 },
+      { key: "label",        value: label },
+      { key: "grantee_name", value: granteeName },
+      { key: "purpose",      value: purpose },
+      { key: "granted_at",   value: now },
+      { key: "expires_at",   value: now + clampedDuration * 1000 },
     ],
     expiresIn: clampedDuration, // TTL = the revocation mechanism
   }

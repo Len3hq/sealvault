@@ -5,9 +5,10 @@ import { usePathname } from "next/navigation"
 import { useVaultAuth } from "@/hooks/use-vault-auth"
 
 const LINKS = [
-  { href: "/vault",  label: "VAULT" },
-  { href: "/grants", label: "SHARES" },
-  { href: "/agent",  label: "AGENT" },
+  { href: "/vault",        label: "VAULT" },
+  { href: "/grants",       label: "SHARES" },
+  { href: "/transactions", label: "TXNS" },
+  { href: "/agent",        label: "AGENT" },
 ]
 
 export function Nav() {

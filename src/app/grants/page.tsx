@@ -23,6 +23,7 @@ function formatTimeLeft(expiresAt: number): { label: string; urgency: "ok" | "so
 
   if (day >= 1) return { label: `${day}d ${hr % 24}h left`, urgency: "ok" }
   if (hr  >= 1) return { label: `${hr}h ${min % 60}m left`, urgency: hr < 6 ? "soon" : "ok" }
+  if (min >= 30) return { label: `${min}m left`, urgency: "soon" }
   return { label: `${min}m left`, urgency: "expired" }
 }
 
@@ -175,10 +176,11 @@ function GrantCard({
 }) {
   const attrs = (grant.attributes ?? []) as Array<{ key: string; value: string | number }>
 
-  const purpose   = String(getAttributeValue(attrs, "purpose")    ?? "No purpose")
-  const parentKey = String(getAttributeValue(attrs, "parent_key") ?? "")
-  const grantedAt = getAttributeValue(attrs, "granted_at") as number | undefined
-  const expiresAt = getAttributeValue(attrs, "expires_at") as number | undefined
+  const label      = String(getAttributeValue(attrs, "label")       ?? "")
+  const granteeName = String(getAttributeValue(attrs, "grantee_name") ?? "")
+  const purpose    = String(getAttributeValue(attrs, "purpose")      ?? "No purpose")
+  const grantedAt  = getAttributeValue(attrs, "granted_at") as number | undefined
+  const expiresAt  = getAttributeValue(attrs, "expires_at") as number | undefined
 
   const { label: timeLabel, urgency } = expiresAt
     ? formatTimeLeft(expiresAt)
@@ -187,22 +189,22 @@ function GrantCard({
   return (
     <div className="border border-sv-border bg-sv-bg p-4 space-y-3 card-lift hover:border-sv-border-hi">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-sv-text truncate">{purpose}</p>
+        <div className="min-w-0 space-y-0.5">
+          {label && (
+            <p className="text-xs font-semibold text-sv-text truncate">{label}</p>
+          )}
+          {granteeName && (
+            <p className="text-[11px] text-sv-blue truncate">→ {granteeName}</p>
+          )}
+          <p className="text-[11px] text-sv-muted truncate">{purpose}</p>
           {grantedAt && (
-            <p className="text-[11px] text-sv-dim mt-0.5 tabular-nums">Shared {formatDate(grantedAt)}</p>
+            <p className="text-[11px] text-sv-dim tabular-nums">Shared {formatDate(grantedAt)}</p>
           )}
         </div>
         <span className={`shrink-0 text-[11px] font-medium uppercase tracking-wide px-2 py-1 border ${URGENCY_STYLE[urgency]}`}>
           {timeLabel}
         </span>
       </div>
-
-      {parentKey && (
-        <p className="text-[11px] text-sv-dim font-mono truncate bg-sv-surface border border-sv-border px-2 py-1">
-          {parentKey.slice(0, 28)}…
-        </p>
-      )}
 
       <div className="flex gap-2">
         <button

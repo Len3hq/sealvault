@@ -7,7 +7,7 @@ export async function uploadToIPFS(bytes: Uint8Array<ArrayBuffer>): Promise<stri
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as { error?: string }
-    throw new Error(err.error ?? "IPFS upload failed")
+    throw new Error(err.error ?? `IPFS upload failed (HTTP ${res.status})`)
   }
   const { cid } = (await res.json()) as { cid: string }
   return cid

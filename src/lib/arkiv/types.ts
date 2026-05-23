@@ -67,6 +67,8 @@ export interface BuildAccessGrantParams {
   grantedByAddress: string
   purpose: string
   durationSeconds: number
+  label: string
+  granteeName: string
 }
 
 // ─── Agent Memory: Grant Record ───────────────────────────────────────────────
