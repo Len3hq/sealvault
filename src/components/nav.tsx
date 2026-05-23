@@ -2,6 +2,9 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useTheme } from "next-themes"
+import { useEffect, useState } from "react"
+import { Sun, Moon } from "lucide-react"
 import { useVaultAuth } from "@/hooks/use-vault-auth"
 
 const LINKS = [
@@ -11,6 +14,26 @@ const LINKS = [
   { href: "/agent",        label: "AGENT" },
   { href: "/memory",       label: "MEMORY" },
 ]
+
+function ThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => { setMounted(true) }, [])
+
+  if (!mounted) return <div className="w-7 h-7" />
+
+  const isDark = resolvedTheme === "dark"
+  return (
+    <button
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+      className="w-7 h-7 flex items-center justify-center border border-sv-border text-sv-dim hover:border-sv-border-hi hover:text-sv-text transition-colors duration-150"
+      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+    >
+      {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+    </button>
+  )
+}
 
 export function Nav() {
   const pathname = usePathname()
@@ -48,7 +71,9 @@ export function Nav() {
         )}
       </div>
 
-      <div className="flex items-center gap-5">
+      <div className="flex items-center gap-3">
+        <ThemeToggle />
+
         {isAuthenticated ? (
           <>
             {walletAddress && (

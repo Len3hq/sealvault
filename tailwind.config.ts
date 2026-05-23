@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss"
 
 const config: Config = {
+  darkMode: "class",
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -10,21 +11,21 @@ const config: Config = {
     extend: {
       colors: {
         sv: {
-          bg:           "#ffffff",
-          surface:      "#f9f9f8",
-          card:         "#f0eeeb",
+          bg:           "rgb(var(--sv-bg) / <alpha-value>)",
+          surface:      "rgb(var(--sv-surface) / <alpha-value>)",
+          card:         "rgb(var(--sv-card) / <alpha-value>)",
           "card-blue":  "#1e3ab8",
-          border:       "#d8d5d0",
-          "border-hi":  "#a09890",
-          text:         "#0d0d0b",
-          muted:        "#5a5651",
-          dim:          "#9a9590",
-          blue:         "#1e3ab8",
-          "blue-li":    "#2a4fd0",
-          "blue-dim":   "#152d9a",
-          "blue-muted": "#eef0fb",
-          orange:       "#e8590c",
-          "orange-li":  "#fff4ee",
+          border:       "rgb(var(--sv-border) / <alpha-value>)",
+          "border-hi":  "rgb(var(--sv-border-hi) / <alpha-value>)",
+          text:         "rgb(var(--sv-text) / <alpha-value>)",
+          muted:        "rgb(var(--sv-muted) / <alpha-value>)",
+          dim:          "rgb(var(--sv-dim) / <alpha-value>)",
+          blue:         "rgb(var(--sv-blue) / <alpha-value>)",
+          "blue-li":    "rgb(var(--sv-blue-li) / <alpha-value>)",
+          "blue-dim":   "rgb(var(--sv-blue-dim) / <alpha-value>)",
+          "blue-muted": "rgb(var(--sv-blue-muted) / <alpha-value>)",
+          orange:       "rgb(var(--sv-orange) / <alpha-value>)",
+          "orange-li":  "rgb(var(--sv-orange-li) / <alpha-value>)",
         },
       },
       fontFamily: {

@@ -5,6 +5,39 @@
 @layer base {
   :root {
     --font-ibm-plex-mono: "IBM Plex Mono", "Courier New", monospace;
+
+    /* Light mode — RGB channels for opacity modifier support */
+    --sv-bg:          255 255 255;
+    --sv-surface:     249 249 248;
+    --sv-card:        240 238 235;
+    --sv-border:      216 213 208;
+    --sv-border-hi:   160 152 144;
+    --sv-text:        13 13 11;
+    --sv-muted:       90 86 81;
+    --sv-dim:         154 149 144;
+    --sv-blue:        30 58 184;
+    --sv-blue-li:     42 79 208;
+    --sv-blue-dim:    21 45 154;
+    --sv-blue-muted:  238 240 251;
+    --sv-orange:      232 89 12;
+    --sv-orange-li:   255 244 238;
+  }
+
+  .dark {
+    --sv-bg:          13 13 11;
+    --sv-surface:     22 22 20;
+    --sv-card:        30 30 28;
+    --sv-border:      50 49 46;
+    --sv-border-hi:   72 70 66;
+    --sv-text:        240 238 235;
+    --sv-muted:       155 151 145;
+    --sv-dim:         115 111 106;
+    --sv-blue:        30 58 184;
+    --sv-blue-li:     42 79 208;
+    --sv-blue-dim:    21 45 154;
+    --sv-blue-muted:  26 35 71;
+    --sv-orange:      232 89 12;
+    --sv-orange-li:   42 18 5;
   }
 
   html {
@@ -12,27 +45,27 @@
   }
 
   body {
-    background-color: #ffffff;
-    color: #0d0d0b;
+    background-color: rgb(var(--sv-bg));
+    color: rgb(var(--sv-text));
     font-family: "IBM Plex Mono", "Courier New", monospace;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   * {
-    border-color: #d8d5d0;
+    border-color: rgb(var(--sv-border));
   }
 
   ::selection {
     background: rgba(30, 58, 184, 0.15);
-    color: #0d0d0b;
+    color: rgb(var(--sv-text));
   }
 
   /* Custom scrollbar */
   ::-webkit-scrollbar        { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track  { background: transparent; }
-  ::-webkit-scrollbar-thumb  { background: #d8d5d0; border-radius: 0; }
-  ::-webkit-scrollbar-thumb:hover { background: #a09890; }
+  ::-webkit-scrollbar-thumb  { background: rgb(var(--sv-border)); border-radius: 0; }
+  ::-webkit-scrollbar-thumb:hover { background: rgb(var(--sv-border-hi)); }
 }
 
 @layer utilities {
@@ -53,8 +86,11 @@
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
   .card-lift:hover {
-    border-color: #a09890;
+    border-color: rgb(var(--sv-border-hi));
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+  .dark .card-lift:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 
   /* ── Stagger delays ── */

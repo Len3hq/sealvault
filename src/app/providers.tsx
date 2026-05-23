@@ -2,6 +2,7 @@
 
 import { PrivyProvider } from "@privy-io/react-auth"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { ThemeProvider } from "next-themes"
 import { useState } from "react"
 import { braga } from "@arkiv-network/sdk/chains"
 import { VaultAuthProvider } from "@/contexts/vault-auth-context"
@@ -17,25 +18,27 @@ export function Providers({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <PrivyProvider
-      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
-      config={{
-        defaultChain: braga,
-        supportedChains: [braga],
-        loginMethods: ["email"],
-        embeddedWallets: {
-          ethereum: { createOnLogin: "users-without-wallets" },
-          showWalletUIs: false,
-        },
-        appearance: {
-          theme: "dark",
-          accentColor: "#f59e0b",
-        },
-      }}
-    >
-      <QueryClientProvider client={queryClient}>
-        <VaultAuthProvider>{children}</VaultAuthProvider>
-      </QueryClientProvider>
-    </PrivyProvider>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <PrivyProvider
+        appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
+        config={{
+          defaultChain: braga,
+          supportedChains: [braga],
+          loginMethods: ["email"],
+          embeddedWallets: {
+            ethereum: { createOnLogin: "users-without-wallets" },
+            showWalletUIs: false,
+          },
+          appearance: {
+            theme: "dark",
+            accentColor: "#f59e0b",
+          },
+        }}
+      >
+        <QueryClientProvider client={queryClient}>
+          <VaultAuthProvider>{children}</VaultAuthProvider>
+        </QueryClientProvider>
+      </PrivyProvider>
+    </ThemeProvider>
   )
 }

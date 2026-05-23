@@ -22,10 +22,10 @@ import {
 // ─── Utilities ──────────────────────────────────────────────────────────────────
 
 const CAT_COLORS: Record<string, string> = {
-  medical:   "bg-rose-50 text-rose-700 border-rose-200",
-  legal:     "bg-blue-50 text-blue-700 border-blue-200",
-  financial: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  personal:  "bg-violet-50 text-violet-700 border-violet-200",
+  medical:   "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-900",
+  legal:     "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900",
+  financial: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900",
+  personal:  "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950 dark:text-violet-300 dark:border-violet-900",
 }
 
 function CategoryBadge({ category }: { category: string }) {
@@ -195,8 +195,8 @@ function UploadDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: 
         </Field>
 
         {error && (
-          <div className="px-3 py-2 bg-rose-50 border border-rose-200">
-            <p className="text-rose-700 text-xs">{error}</p>
+          <div className="px-3 py-2 bg-rose-50 border border-rose-200 dark:bg-rose-950 dark:border-rose-900">
+            <p className="text-rose-700 text-xs dark:text-rose-300">{error}</p>
           </div>
         )}
 
@@ -266,8 +266,8 @@ function ViewDialog({
 
       <div className="p-6">
         {error && (
-          <div className="px-3 py-2 bg-rose-50 border border-rose-200 text-center">
-            <p className="text-rose-700 text-sm">{error}</p>
+          <div className="px-3 py-2 bg-rose-50 border border-rose-200 text-center dark:bg-rose-950 dark:border-rose-900">
+            <p className="text-rose-700 text-sm dark:text-rose-300">{error}</p>
           </div>
         )}
 
@@ -341,9 +341,9 @@ function ShareDialog({
           <h2 className="text-sm font-bold text-sv-text mt-1">Share with {granteeName}</h2>
         </div>
         <div className="p-6 space-y-4 animate-scale-in">
-          <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200">
-            <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-            <p className="text-xs text-emerald-700">
+          <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 dark:bg-emerald-950 dark:border-emerald-900">
+            <Check className="w-4 h-4 text-emerald-600 shrink-0 dark:text-emerald-400" />
+            <p className="text-xs text-emerald-700 dark:text-emerald-300">
               Expires in {DURATION_PRESETS.find((p) => p.seconds === duration)?.label ?? `${duration}s`}.
             </p>
           </div>
@@ -421,8 +421,8 @@ function ShareDialog({
         </Field>
 
         {createGrant.error && (
-          <div className="px-3 py-2 bg-rose-50 border border-rose-200">
-            <p className="text-rose-700 text-xs">
+          <div className="px-3 py-2 bg-rose-50 border border-rose-200 dark:bg-rose-950 dark:border-rose-900">
+            <p className="text-rose-700 text-xs dark:text-rose-300">
               {createGrant.error instanceof Error ? createGrant.error.message : "Failed to create grant"}
             </p>
           </div>
@@ -531,9 +531,9 @@ function DeleteConfirmDialog({
         <h2 className="text-sm font-bold text-sv-text mt-1">Are you sure?</h2>
       </div>
       <div className="p-6 space-y-5">
-        <div className="flex items-start gap-3 p-3 bg-rose-50 border border-rose-200">
-          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-          <p className="text-xs text-rose-700 leading-relaxed">
+        <div className="flex items-start gap-3 p-3 bg-rose-50 border border-rose-200 dark:bg-rose-950 dark:border-rose-900">
+          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5 dark:text-rose-400" />
+          <p className="text-xs text-rose-700 leading-relaxed dark:text-rose-300">
             <span className="font-medium">{label}</span> and all its active share links will be
             permanently removed. This cannot be undone.
           </p>

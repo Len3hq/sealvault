@@ -14,8 +14,8 @@ export interface TxEntry {
 }
 
 export const TX_STYLE: Record<TxType, string> = {
-  UPLOAD: "bg-sv-blue-muted text-sv-blue border-sv-blue/20",
-  SHARE:  "bg-emerald-50 text-emerald-700 border-emerald-200",
+  UPLOAD: "bg-sv-blue-muted text-sv-blue border-sv-blue/20 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800",
+  SHARE:  "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900",
 }
 
 function formatTs(ts: number) {
@@ -58,7 +58,7 @@ export function TxRow({ tx, compact = false }: { tx: TxEntry; compact?: boolean 
         title={`Entity ${tx.entityKey} · View on Braga Explorer`}
         className="shrink-0 flex items-center gap-1.5 text-[11px] text-sv-dim hover:text-sv-blue transition-colors duration-150 group"
       >
-        <span className="hidden md:inline text-sv-dim/60 group-hover:text-sv-blue/60">entity</span>
+        <span className="hidden md:inline text-sv-dim/70 dark:text-sv-dim group-hover:text-sv-blue/60">entity</span>
         <span className="font-mono">{shortKey}</span>
         <ExternalLink className="w-2.5 h-2.5" />
       </a>

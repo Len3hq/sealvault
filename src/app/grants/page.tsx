@@ -35,9 +35,9 @@ function formatDate(ts: number): string {
 }
 
 const URGENCY_STYLE = {
-  ok:      "bg-emerald-50 border-emerald-200 text-emerald-700",
-  soon:    "bg-amber-50 border-amber-200 text-amber-700",
-  expired: "bg-rose-50 border-rose-200 text-rose-700",
+  ok:      "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950 dark:border-emerald-900 dark:text-emerald-300",
+  soon:    "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950 dark:border-amber-900 dark:text-amber-300",
+  expired: "bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950 dark:border-rose-900 dark:text-rose-300",
 }
 
 // ─── Overlay ──────────────────────────────────────────────────────────────────
