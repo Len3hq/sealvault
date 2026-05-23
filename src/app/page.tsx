@@ -196,7 +196,7 @@ export default function Home() {
                 >
                   Open your vault
                 </button>
-                <span className="text-xs text-sv-dim">No crypto wallet required</span>
+                <span className="text-xs text-sv-dim">Sign in with email</span>
               </div>
             </div>
 
