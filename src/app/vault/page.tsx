@@ -1,18 +1,19 @@
 "use client"
 
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useVaultAuth } from "@/hooks/use-vault-auth"
 import { useVaultItems } from "@/hooks/use-vault-items"
 import { useCreateGrant } from "@/hooks/use-grant-actions"
 import { queryVaultItemByKey } from "@/lib/arkiv/queries"
-import { encryptVaultItem } from "@/lib/crypto"
+import { encryptVaultItem, decryptVaultItem } from "@/lib/crypto"
 import { uploadToIPFS } from "@/lib/ipfs"
 import { relayPost, relayDelete } from "@/lib/relay"
 import { getAttributeValue } from "@/lib/arkiv/schemas"
 import { VAULT_CATEGORIES } from "@/lib/arkiv/constants"
 import type { VaultCategory } from "@/lib/arkiv/constants"
 import { VaultItemPayloadSchema, parseEntityPayload } from "@/lib/arkiv/payload-schemas"
+import { DocumentViewer, DownloadButton } from "@/components/document-viewer"
 
 // ─── Shared utilities ──────────────────────────────────────────────────────────
 
@@ -195,6 +196,76 @@ function UploadDialog({
   )
 }
 
+// ─── View dialog ───────────────────────────────────────────────────────────────
+
+function ViewDialog({
+  vaultItemKey,
+  vaultItemLabel,
+  onClose,
+}: {
+  vaultItemKey: string
+  vaultItemLabel: string
+  onClose: () => void
+}) {
+  const { masterKey, walletAddress, publicClient } = useVaultAuth()
+  const [content, setContent] = useState<Uint8Array<ArrayBuffer> | null>(null)
+  const [fileType, setFileType] = useState<string | undefined>()
+  const [error, setError] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    if (!masterKey || !walletAddress) { setError("Vault is locked"); return }
+    let cancelled = false
+    async function decrypt() {
+      try {
+        const entity = await queryVaultItemByKey(publicClient, vaultItemKey, walletAddress!)
+        if (!entity?.payload) { if (!cancelled) setError("Document not found"); return }
+        const attrs = (entity.attributes ?? []) as Array<{ key: string; value: string | number }>
+        const ft = String(getAttributeValue(attrs, "file_type") ?? "application/octet-stream")
+        const decrypted = await decryptVaultItem(parseEntityPayload(VaultItemPayloadSchema, entity.payload), masterKey!)
+        if (!cancelled) { setFileType(ft); setContent(decrypted); setLoaded(true) }
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Decryption failed")
+      }
+    }
+    decrypt()
+    return () => { cancelled = true }
+  }, [masterKey, walletAddress, vaultItemKey, publicClient])
+
+  return (
+    <Overlay onClose={onClose}>
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-50">{vaultItemLabel}</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Your encrypted document</p>
+        </div>
+      </div>
+
+      {error && (
+        <p className="text-red-400 text-sm text-center py-8">{error}</p>
+      )}
+
+      {!loaded && !error && (
+        <div className="flex flex-col items-center gap-3 py-12">
+          <div className="w-6 h-6 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+          <p className="text-slate-400 text-sm">Decrypting…</p>
+        </div>
+      )}
+
+      {loaded && content && (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-slate-700 overflow-hidden bg-slate-900 p-2">
+            <DocumentViewer content={content} fileType={fileType} label={vaultItemLabel} />
+          </div>
+          {fileType && !fileType.startsWith("text/") && (
+            <DownloadButton content={content} fileType={fileType} label={vaultItemLabel} />
+          )}
+        </div>
+      )}
+    </Overlay>
+  )
+}
+
 // ─── Share dialog ──────────────────────────────────────────────────────────────
 
 function ShareDialog({
@@ -364,10 +435,12 @@ function ShareDialog({
 
 function VaultCard({
   entity,
+  onView,
   onShare,
   onDelete,
 }: {
   entity: { key: string; attributes?: unknown }
+  onView: (key: string, label: string) => void
   onShare: (key: string, label: string) => void
   onDelete: (key: string, label: string) => void
 }) {
@@ -399,6 +472,12 @@ function VaultCard({
       <CategoryBadge category={category} />
 
       <div className="flex gap-2 shrink-0">
+        <button
+          onClick={() => onView(entity.key, label)}
+          className="px-3 py-1.5 rounded-lg border border-slate-600 text-slate-300 hover:border-slate-500 hover:text-slate-100 text-xs transition-colors"
+        >
+          View
+        </button>
         <button
           onClick={() => onShare(entity.key, label)}
           className="px-3 py-1.5 rounded-lg border border-slate-600 text-slate-300 hover:border-amber-500/50 hover:text-amber-400 text-xs transition-colors"
@@ -484,6 +563,7 @@ export default function VaultPage() {
 
   const [categoryFilter, setCategoryFilter] = useState<VaultCategory | "all">("all")
   const [showUpload, setShowUpload] = useState(false)
+  const [viewTarget, setViewTarget] = useState<{ key: string; label: string } | null>(null)
   const [shareTarget, setShareTarget] = useState<{ key: string; label: string } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ key: string; label: string } | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -614,6 +694,7 @@ export default function VaultPage() {
               <VaultCard
                 key={String(e.key)}
                 entity={{ key: String(e.key), attributes: e.attributes }}
+                onView={(key, label) => setViewTarget({ key, label })}
                 onShare={(key, label) => setShareTarget({ key, label })}
                 onDelete={(key, label) => setDeleteTarget({ key, label })}
               />
@@ -627,6 +708,13 @@ export default function VaultPage() {
         <UploadDialog
           onClose={() => setShowUpload(false)}
           onSuccess={() => queryClient.invalidateQueries({ queryKey: ["vault-items"] })}
+        />
+      )}
+      {viewTarget && (
+        <ViewDialog
+          vaultItemKey={viewTarget.key}
+          vaultItemLabel={viewTarget.label}
+          onClose={() => setViewTarget(null)}
         />
       )}
       {shareTarget && (
