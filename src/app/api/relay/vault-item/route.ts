@@ -4,7 +4,6 @@ import { verifyOwner } from "@/lib/server/verify-auth"
 import { getRelayerClient } from "@/lib/arkiv/server-client"
 import { publicClient } from "@/lib/arkiv/client"
 import { createVaultItem, deleteVaultItemWithGrants } from "@/lib/arkiv/mutations"
-import { VAULT_CATEGORIES } from "@/lib/arkiv/constants"
 import type { WalletClient } from "@/lib/arkiv/types"
 
 export const runtime = "nodejs"
@@ -16,7 +15,7 @@ const PostBodySchema = z.object({
   wrapIv:         z.string().min(1),
   version:        z.number().int().positive(),
   label:          z.string().min(1),
-  category:       z.enum(VAULT_CATEGORIES),
+  category:       z.string().min(1).max(50),
   fileType:       z.string().min(1),
   sizeBytes:      z.number().int().nonnegative(),
 })

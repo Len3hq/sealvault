@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useCallback, useEffect } from "react"
+import { useState, useRef, useCallback, useEffect, useMemo } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useVaultAuth } from "@/hooks/use-vault-auth"
 import { useVaultItems } from "@/hooks/use-vault-items"
@@ -89,7 +89,9 @@ function UploadDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: 
   const { masterKey, walletAddress, signature } = useVaultAuth()
   const [file, setFile] = useState<File | null>(null)
   const [label, setLabel] = useState("")
-  const [category, setCategory] = useState<VaultCategory>("personal")
+  const [category, setCategory] = useState<string>("personal")
+  const [customCategory, setCustomCategory] = useState("")
+  const [isCustom, setIsCustom] = useState(false)
   const [uploadStep, setUploadStep] = useState<"idle" | "encrypting" | "uploading" | "saving">("idle")
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -114,9 +116,10 @@ function UploadDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: 
       setUploadStep("uploading")
       const cid = await uploadToIPFS(ciphertext)
       setUploadStep("saving")
+      const effectiveCategory = isCustom ? customCategory.trim() || "personal" : category
       await relayPost(
         "/api/relay/vault-item",
-        { cid, ...keyMaterial, label: label || file.name, category, fileType: file.type || "application/octet-stream", sizeBytes: file.size },
+        { cid, ...keyMaterial, label: label || file.name, category: effectiveCategory, fileType: file.type || "application/octet-stream", sizeBytes: file.size },
         walletAddress,
         signature
       )
@@ -181,9 +184,9 @@ function UploadDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: 
             {VAULT_CATEGORIES.map((c) => (
               <button
                 key={c}
-                onClick={() => setCategory(c)}
+                onClick={() => { setCategory(c); setIsCustom(false) }}
                 className={`px-3 py-1.5 text-[11px] font-medium uppercase tracking-wide border transition-colors duration-150 ${
-                  category === c
+                  !isCustom && category === c
                     ? "bg-sv-blue border-sv-blue text-white"
                     : "border-sv-border text-sv-muted hover:border-sv-border-hi hover:text-sv-text"
                 }`}
@@ -191,7 +194,26 @@ function UploadDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: 
                 {c}
               </button>
             ))}
+            <button
+              onClick={() => setIsCustom(true)}
+              className={`px-3 py-1.5 text-[11px] font-medium uppercase tracking-wide border transition-colors duration-150 ${
+                isCustom
+                  ? "bg-sv-blue border-sv-blue text-white"
+                  : "border-sv-border text-sv-muted hover:border-sv-border-hi hover:text-sv-text"
+              }`}
+            >
+              + Custom
+            </button>
           </div>
+          {isCustom && (
+            <input
+              autoFocus
+              value={customCategory}
+              onChange={(e) => setCustomCategory(e.target.value)}
+              placeholder="e.g. Travel, Work, Education…"
+              className="mt-2 w-full bg-sv-bg border border-sv-blue px-3 py-2 text-xs text-sv-text placeholder:text-sv-dim focus:outline-none transition-colors duration-150"
+            />
+          )}
         </Field>
 
         {error && (
@@ -570,7 +592,7 @@ export default function VaultPage() {
     useVaultAuth()
   const queryClient = useQueryClient()
 
-  const [categoryFilter, setCategoryFilter] = useState<VaultCategory | "all">("all")
+  const [categoryFilter, setCategoryFilter] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [showUpload, setShowUpload] = useState(false)
   const [viewTarget, setViewTarget] = useState<{ key: string; label: string } | null>(null)
@@ -578,9 +600,9 @@ export default function VaultPage() {
   const [deleteTarget, setDeleteTarget] = useState<{ key: string; label: string } | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  const { data: vaultItems, isLoading } = useVaultItems(
-    categoryFilter !== "all" ? { category: categoryFilter } : undefined
-  )
+  // Load all items — category filter and label search are both client-side so
+  // custom categories appear in the filter bar without a second query.
+  const { data: vaultItems, isLoading } = useVaultItems()
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget || !walletAddress || !signature) return
@@ -594,6 +616,29 @@ export default function VaultPage() {
       setDeleting(false)
     }
   }, [deleteTarget, walletAddress, signature, queryClient])
+
+  const allItems = vaultItems ?? []
+
+  const customCategories = useMemo(() => {
+    const seen = new Set<string>()
+    for (const e of allItems) {
+      const attrs = (e.attributes ?? []) as Array<{ key: string; value: string | number }>
+      const cat = String(attrs.find((a) => a.key === "category")?.value ?? "")
+      if (cat && !(VAULT_CATEGORIES as readonly string[]).includes(cat)) seen.add(cat)
+    }
+    return [...seen].sort()
+  }, [allItems])
+
+  const items = useMemo(() => {
+    return allItems.filter((e) => {
+      const attrs = (e.attributes ?? []) as Array<{ key: string; value: string | number }>
+      const label = String(attrs.find((a) => a.key === "label")?.value ?? "")
+      const cat   = String(attrs.find((a) => a.key === "category")?.value ?? "")
+      const matchesCategory = categoryFilter === "all" || cat === categoryFilter
+      const matchesSearch   = !searchQuery.trim() || label.toLowerCase().includes(searchQuery.toLowerCase())
+      return matchesCategory && matchesSearch
+    })
+  }, [allItems, categoryFilter, searchQuery])
 
   if (!isAuthenticated) {
     return (
@@ -645,17 +690,6 @@ export default function VaultPage() {
     )
   }
 
-  const allItems = vaultItems ?? []
-
-  // Label search is client-side — category is already pushed to Arkiv as eq("category", ...)
-  const items = searchQuery.trim()
-    ? allItems.filter((e) => {
-        const attrs = (e.attributes ?? []) as Array<{ key: string; value: string | number }>
-        const label = String(attrs.find((a) => a.key === "label")?.value ?? "")
-        return label.toLowerCase().includes(searchQuery.toLowerCase())
-      })
-    : allItems
-
   return (
     <>
       <main className="max-w-4xl mx-auto px-6 py-10 space-y-6 animate-fade-in">
@@ -699,7 +733,7 @@ export default function VaultPage() {
           </div>
 
           <div className="flex gap-2 flex-wrap">
-            {(["all", ...VAULT_CATEGORIES] as const).map((c) => (
+            {(["all", ...VAULT_CATEGORIES, ...customCategories] as string[]).map((c) => (
               <button
                 key={c}
                 onClick={() => setCategoryFilter(c)}

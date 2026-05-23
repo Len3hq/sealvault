@@ -41,7 +41,7 @@ export interface VaultItemPayload {
 
 export interface VaultItemMeta {
   label: string
-  category: VaultCategory
+  category: string
   fileType: string
   sizeBytes: number
 }
@@ -84,7 +84,7 @@ export interface BuildGrantRecordParams {
   parentVaultItemKey: string
   grantEntityKey: string
   status: GrantStatus
-  category: VaultCategory
+  category: string
   purpose: string
   durationSeconds: number
   ownerAddress: string
