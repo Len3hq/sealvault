@@ -4,11 +4,75 @@
 
 @layer base {
   :root {
-    --background: 15 23 42;
-    --foreground: 248 250 252;
+    --font-ibm-plex-mono: "IBM Plex Mono", "Courier New", monospace;
+  }
+
+  html {
+    font-family: "IBM Plex Mono", "Courier New", monospace;
   }
 
   body {
-    @apply bg-vault-navy text-slate-50 antialiased;
+    background-color: #ffffff;
+    color: #0d0d0b;
+    font-family: "IBM Plex Mono", "Courier New", monospace;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  * {
+    border-color: #d8d5d0;
+  }
+
+  ::selection {
+    background: rgba(30, 58, 184, 0.15);
+    color: #0d0d0b;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar        { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { background: #d8d5d0; border-radius: 0; }
+  ::-webkit-scrollbar-thumb:hover { background: #a09890; }
+}
+
+@layer utilities {
+  /* ── Bracket label utility ── */
+  .bracket::before { content: "[ "; }
+  .bracket::after  { content: " ]"; }
+
+  /* ── Arkiv-style filled blue card ── */
+  .card-blue {
+    background-color: #1e3ab8;
+    color: #ffffff;
+    border-color: #1e3ab8;
+  }
+  .card-blue * { border-color: rgba(255,255,255,0.2); }
+
+  /* ── Card hover ── */
+  .card-lift {
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .card-lift:hover {
+    border-color: #a09890;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+
+  /* ── Stagger delays ── */
+  .stagger-1 { animation-delay: 60ms; }
+  .stagger-2 { animation-delay: 120ms; }
+  .stagger-3 { animation-delay: 180ms; }
+  .stagger-4 { animation-delay: 240ms; }
+  .stagger-5 { animation-delay: 300ms; }
+
+  /* ── Reduced motion ── */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-fade-in,
+    .animate-slide-up,
+    .animate-slide-down,
+    .animate-scale-in {
+      animation: none !important;
+      opacity: 1 !important;
+      transform: none !important;
+    }
   }
 }

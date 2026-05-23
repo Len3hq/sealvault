@@ -3,9 +3,9 @@
 import { useRef, useEffect, FormEvent } from "react"
 import { isToolUIPart, isTextUIPart, getToolName } from "ai"
 import { useVaultAuth } from "@/hooks/use-vault-auth"
-
 import { useAgentChat } from "@/hooks/use-agent-chat"
 import type { UIMessage, UIMessagePart, UIDataTypes, UITools } from "ai"
+import { Send, Bot, Check, ExternalLink } from "lucide-react"
 
 // ─── Tool state badge ──────────────────────────────────────────────────────────
 
@@ -13,28 +13,19 @@ function ToolBadge({ part }: { part: UIMessagePart<UIDataTypes, UITools> }) {
   if (!isToolUIPart(part)) return null
 
   const toolName = getToolName(part)
-  const label = toolName.replace(/_/g, " ")
+  const label = toolName.replace(/_/g, " ").toUpperCase()
   const isWrite = [
-    "grant_access",
-    "revoke_access",
-    "extend_access",
-    "save_contact",
-    "delete_vault_item",
+    "grant_access", "revoke_access", "extend_access", "save_contact", "delete_vault_item",
   ].includes(toolName)
 
-  const inv = part as unknown as {
-    state: string
-    output?: unknown
-    errorText?: string
-  }
+  const inv = part as unknown as { state: string; output?: unknown; errorText?: string }
 
   if (inv.state === "input-streaming" || inv.state === "input-available") {
     return (
-      <div className="mt-2 flex items-center gap-2 text-xs text-slate-400 border border-slate-700 rounded-lg px-3 py-2">
-        <div className="w-3 h-3 rounded-full border border-amber-400 border-t-transparent animate-spin" />
-        <span className={isWrite ? "text-amber-400" : ""}>
-          {isWrite ? "Executing: " : "Querying: "}
-          {label}
+      <div className="mt-2 flex items-center gap-2 text-[11px] text-sv-muted border border-sv-border px-3 py-2 bg-sv-surface">
+        <div className="w-3 h-3 border border-sv-blue border-t-transparent animate-spin shrink-0" />
+        <span className={isWrite ? "text-sv-blue" : ""}>
+          {isWrite ? "EXECUTING: " : "QUERYING: "}{label}
         </span>
       </div>
     )
@@ -44,21 +35,22 @@ function ToolBadge({ part }: { part: UIMessagePart<UIDataTypes, UITools> }) {
     const result = inv.output as Record<string, unknown> | undefined
     const magicLink = result?.magicLink as string | undefined
     return (
-      <div className="mt-2 text-xs border border-slate-700 rounded-lg px-3 py-2 space-y-1">
-        <div className="flex items-center gap-1.5 text-emerald-400">
-          <span>✓</span>
-          <span>{label} complete</span>
+      <div className="mt-2 text-[11px] border border-emerald-200 px-3 py-2 bg-emerald-50 space-y-1.5">
+        <div className="flex items-center gap-1.5 text-emerald-700">
+          <Check className="w-3 h-3" />
+          <span className="font-medium">{label} COMPLETE</span>
         </div>
         {magicLink && (
-          <div className="mt-1">
-            <p className="text-slate-400 mb-1">Magic link:</p>
+          <div className="pt-0.5">
+            <p className="text-sv-muted mb-1">Share link:</p>
             <a
               href={magicLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-amber-400 underline break-all"
+              className="flex items-center gap-1.5 text-sv-blue hover:text-sv-blue-li underline break-all transition-colors"
             >
               {magicLink}
+              <ExternalLink className="w-3 h-3 shrink-0" />
             </a>
           </div>
         )}
@@ -68,11 +60,9 @@ function ToolBadge({ part }: { part: UIMessagePart<UIDataTypes, UITools> }) {
 
   if (inv.state === "output-error") {
     return (
-      <div className="mt-2 text-xs text-red-400 border border-red-800 rounded-lg px-3 py-2">
-        <span className="font-medium">{label}</span> failed
-        {inv.errorText && (
-          <p className="mt-0.5 text-red-500">{inv.errorText}</p>
-        )}
+      <div className="mt-2 text-[11px] text-rose-700 border border-rose-200 px-3 py-2 bg-rose-50">
+        <span className="font-medium">{label}</span> FAILED
+        {inv.errorText && <p className="mt-0.5 text-rose-500">{inv.errorText}</p>}
       </div>
     )
   }
@@ -84,19 +74,22 @@ function ToolBadge({ part }: { part: UIMessagePart<UIDataTypes, UITools> }) {
 
 function MessageBubble({ message }: { message: UIMessage }) {
   const isUser = message.role === "user"
-
   const textParts = message.parts.filter(isTextUIPart)
   const toolParts = message.parts.filter(isToolUIPart)
-
   const text = textParts.map((p) => p.text).join("")
 
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+    <div className={`flex gap-2.5 animate-slide-up ${isUser ? "justify-end" : "justify-start"}`}>
+      {!isUser && (
+        <div className="w-6 h-6 border border-sv-border bg-sv-surface flex items-center justify-center shrink-0 mt-1">
+          <Bot className="w-3 h-3 text-sv-muted" />
+        </div>
+      )}
       <div
-        className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+        className={`max-w-[78%] px-4 py-3 text-xs leading-relaxed border ${
           isUser
-            ? "bg-amber-500 text-slate-900"
-            : "bg-slate-800 border border-slate-700 text-slate-200"
+            ? "bg-sv-blue border-sv-blue text-white"
+            : "bg-sv-bg border-sv-border text-sv-text"
         }`}
       >
         {text && <p className="whitespace-pre-wrap break-words">{text}</p>}
@@ -112,13 +105,16 @@ function MessageBubble({ message }: { message: UIMessage }) {
 
 function TypingIndicator() {
   return (
-    <div className="flex justify-start">
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 flex gap-1 items-center">
-        {[0, 1, 2].map((i) => (
+    <div className="flex gap-2.5 justify-start animate-fade-in">
+      <div className="w-6 h-6 border border-sv-border bg-sv-surface flex items-center justify-center shrink-0 mt-1">
+        <Bot className="w-3 h-3 text-sv-muted" />
+      </div>
+      <div className="bg-sv-bg border border-sv-border px-4 py-3 flex gap-1.5 items-center">
+        {[0, 150, 300].map((delay) => (
           <div
-            key={i}
-            className="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce"
-            style={{ animationDelay: `${i * 150}ms` }}
+            key={delay}
+            className="w-1.5 h-1.5 bg-sv-dim animate-bounce"
+            style={{ animationDelay: `${delay}ms`, animationDuration: "900ms" }}
           />
         ))}
       </div>
@@ -131,7 +127,7 @@ function TypingIndicator() {
 const SUGGESTIONS = [
   "What documents do I have?",
   "Who has access to my files right now?",
-  "Show my grant history",
+  "Show my active share links",
 ]
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
@@ -145,7 +141,7 @@ export default function AgentPage() {
     signature,
   })
 
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const inputRef  = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -172,21 +168,22 @@ export default function AgentPage() {
     }
   }
 
-  // ── Not logged in ──
   if (!isAuthenticated) {
     return (
       <main className="min-h-screen flex items-center justify-center px-4">
-        <div className="text-center space-y-4 max-w-sm">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-            <span className="text-2xl">🔐</span>
+        <div className="text-center space-y-5 max-w-sm animate-scale-in">
+          <div className="w-12 h-12 mx-auto border border-sv-border bg-sv-surface flex items-center justify-center">
+            <Bot className="w-5 h-5 text-sv-dim" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-50">SealVault Agent</h1>
-          <p className="text-slate-400 text-sm">
-            Sign in to manage your encrypted documents with AI assistance.
-          </p>
+          <div className="space-y-2">
+            <h1 className="text-sm font-bold text-sv-text uppercase tracking-wide">[ SEALVAULT AGENT ]</h1>
+            <p className="text-sv-muted text-xs leading-relaxed">
+              Sign in to manage your encrypted documents with AI assistance.
+            </p>
+          </div>
           <button
             onClick={login}
-            className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold transition-colors text-sm"
+            className="px-6 py-2.5 bg-sv-blue hover:bg-sv-blue-li text-white font-medium transition-colors duration-150 text-xs"
           >
             Sign in
           </button>
@@ -195,47 +192,51 @@ export default function AgentPage() {
     )
   }
 
-  // ── Vault unlocking ──
   if (!isVaultReady) {
     return (
       <main className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-3">
-          <div className="w-6 h-6 mx-auto rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
-          <p className="text-slate-400 text-sm">Unlocking vault…</p>
+          <div className="w-5 h-5 mx-auto border-2 border-sv-blue border-t-transparent animate-spin" />
+          <p className="text-sv-dim text-xs">Unlocking vault…</p>
         </div>
       </main>
     )
   }
 
-  // ── Chat ──
   return (
-    <main className="flex flex-col h-screen max-w-3xl mx-auto px-4">
+    <main className="flex flex-col h-[calc(100dvh-57px)] max-w-3xl mx-auto px-4">
+
       {/* Header */}
-      <div className="flex items-center gap-3 py-4 border-b border-slate-800 shrink-0">
-        <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 text-sm font-bold">
-          S
+      <div className="flex items-center gap-3 py-4 border-b border-sv-border shrink-0">
+        <div className="w-8 h-8 border border-sv-border bg-sv-surface flex items-center justify-center">
+          <Bot className="w-4 h-4 text-sv-muted" />
         </div>
         <div>
-          <h1 className="text-sm font-semibold text-slate-100">SealVault Agent</h1>
-          <p className="text-xs text-slate-500">
-            {masterKey ? "Vault unlocked · ready" : "Connecting…"}
-          </p>
+          <p className="text-xs font-bold text-sv-text uppercase tracking-wide">[ SEALVAULT AGENT ]</p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className={`w-1.5 h-1.5 ${masterKey ? "bg-emerald-500" : "bg-sv-dim"}`} />
+            <p className="text-[11px] text-sv-dim">
+              {masterKey ? "Vault unlocked · ready" : "Connecting…"}
+            </p>
+          </div>
         </div>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto py-6 space-y-4">
         {messages.length === 0 && (
-          <div className="text-center py-16 space-y-4">
-            <p className="text-slate-400 text-sm">
-              Ask me about your documents or active shares.
-            </p>
+          <div className="text-center py-14 space-y-6 animate-fade-in">
+            <div className="space-y-1">
+              <p className="text-sv-text text-xs font-bold uppercase tracking-widest">[ HOW CAN I HELP? ]</p>
+              <p className="text-sv-muted text-xs">Ask me about your documents or active shares.</p>
+            </div>
             <div className="flex flex-wrap justify-center gap-2">
-              {SUGGESTIONS.map((prompt) => (
+              {SUGGESTIONS.map((prompt, i) => (
                 <button
                   key={prompt}
                   onClick={() => submit(prompt)}
-                  className="px-3 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs transition-colors"
+                  className="px-3 py-1.5 border border-sv-border bg-sv-surface hover:border-sv-blue hover:text-sv-blue text-sv-muted text-[11px] transition-colors duration-150 animate-slide-up"
+                  style={{ animationDelay: `${i * 60}ms` }}
                 >
                   {prompt}
                 </button>
@@ -251,7 +252,7 @@ export default function AgentPage() {
         {isStreaming && <TypingIndicator />}
 
         {error && (
-          <div className="text-center text-red-400 text-xs py-2">
+          <div className="text-center text-rose-600 text-[11px] py-2 animate-fade-in">
             Something went wrong — try again.
           </div>
         )}
@@ -260,7 +261,7 @@ export default function AgentPage() {
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSubmit} className="py-4 border-t border-slate-800 shrink-0">
+      <form onSubmit={handleSubmit} className="py-4 border-t border-sv-border shrink-0">
         <div className="flex gap-2 items-end">
           <textarea
             ref={inputRef}
@@ -268,21 +269,22 @@ export default function AgentPage() {
             onKeyDown={handleKeyDown}
             disabled={isStreaming}
             placeholder="Ask about your vault…"
-            className="flex-1 resize-none rounded-xl bg-slate-800 border border-slate-700 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-amber-500/50 transition-colors disabled:opacity-50"
+            className="flex-1 resize-none bg-sv-bg border border-sv-border px-4 py-3 text-xs text-sv-text placeholder:text-sv-dim focus:outline-none focus:border-sv-blue transition-colors duration-150 disabled:opacity-50"
             style={{ maxHeight: "160px", overflowY: "auto" }}
           />
           <button
             type="submit"
             disabled={isStreaming}
-            className="px-4 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="p-3 bg-sv-blue hover:bg-sv-blue-li text-white transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
           >
-            Send
+            <Send className="w-4 h-4" />
           </button>
         </div>
-        <p className="text-xs text-slate-600 mt-2 text-center">
+        <p className="text-[11px] text-sv-dim mt-2 text-center">
           Enter to send · Shift+Enter for new line
         </p>
       </form>
+
     </main>
   )
 }

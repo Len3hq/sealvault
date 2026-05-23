@@ -5,55 +5,70 @@ import { usePathname } from "next/navigation"
 import { useVaultAuth } from "@/hooks/use-vault-auth"
 
 const LINKS = [
-  { href: "/vault",  label: "Vault" },
-  { href: "/grants", label: "Active Shares" },
-  { href: "/agent",  label: "AI Agent" },
+  { href: "/vault",  label: "VAULT" },
+  { href: "/grants", label: "SHARES" },
+  { href: "/agent",  label: "AGENT" },
 ]
 
 export function Nav() {
   const pathname = usePathname()
-  const { isAuthenticated, logout, walletAddress } = useVaultAuth()
-
-  if (!isAuthenticated) return null
+  const { isAuthenticated, logout, login, walletAddress } = useVaultAuth()
 
   return (
-    <nav className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm px-6 py-3 flex items-center justify-between">
-      <div className="flex items-center gap-8">
-        <Link href="/" className="text-amber-400 font-bold text-base tracking-tight">
-          SealVault
+    <nav className="sticky top-0 z-40 border-b border-sv-border bg-sv-bg px-6 py-4 flex items-center justify-between animate-slide-down">
+      <div className="flex items-center gap-10">
+        <Link
+          href="/"
+          className="text-sv-text font-bold text-sm tracking-tight hover:text-sv-blue transition-colors duration-150"
+        >
+          [ SEALVAULT ]
         </Link>
-        <div className="flex items-center gap-1">
-          {LINKS.map((l) => {
-            const active = pathname === l.href || pathname.startsWith(l.href + "/")
-            return (
-              <Link
-                key={l.href}
-                href={l.href}
-                className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                  active
-                    ? "bg-slate-800 text-slate-100"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                }`}
-              >
-                {l.label}
-              </Link>
-            )
-          })}
-        </div>
+
+        {isAuthenticated && (
+          <div className="hidden sm:flex items-center gap-6">
+            {LINKS.map((l) => {
+              const active = pathname === l.href || pathname.startsWith(l.href + "/")
+              return (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className={`text-xs font-medium tracking-wide transition-colors duration-150 pb-0.5 ${
+                    active
+                      ? "text-sv-text border-b border-sv-blue"
+                      : "text-sv-muted hover:text-sv-text"
+                  }`}
+                >
+                  {l.label}
+                </Link>
+              )
+            })}
+          </div>
+        )}
       </div>
 
-      <div className="flex items-center gap-3">
-        {walletAddress && (
-          <span className="text-xs font-mono text-slate-500">
-            {walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}
-          </span>
+      <div className="flex items-center gap-5">
+        {isAuthenticated ? (
+          <>
+            {walletAddress && (
+              <span className="hidden sm:inline text-xs text-sv-dim tabular-nums">
+                {walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}
+              </span>
+            )}
+            <button
+              onClick={logout}
+              className="text-xs text-sv-muted hover:text-sv-text transition-colors duration-150"
+            >
+              Sign out
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={login}
+            className="px-4 py-1.5 bg-sv-blue text-white text-xs font-medium hover:bg-sv-blue-li transition-colors duration-150"
+          >
+            Sign in ↗
+          </button>
         )}
-        <button
-          onClick={logout}
-          className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
-        >
-          Sign out
-        </button>
       </div>
     </nav>
   )

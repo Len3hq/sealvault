@@ -19,6 +19,7 @@
     "@tanstack/react-query": "^5.76.1",
     "ai": "^6.0.190",
     "clsx": "^2.1.1",
+    "lucide-react": "^1.16.0",
     "next": "^15.3.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

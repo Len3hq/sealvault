@@ -5,14 +5,15 @@ import { useVaultAuth } from "@/hooks/use-vault-auth"
 import { useVaultItems } from "@/hooks/use-vault-items"
 import { useActiveGrants } from "@/hooks/use-active-grants"
 import { getAttributeValue } from "@/lib/arkiv/schemas"
+import {
+  FileText, ImageIcon, Paperclip,
+  FolderOpen, Share2, Bot,
+} from "lucide-react"
 
-// ─── Stat card ────────────────────────────────────────────────────────────────
+// ─── Stat card ──────────────────────────────────────────────────────────────────
 
 function StatCard({
-  label,
-  value,
-  sub,
-  href,
+  label, value, sub, href,
 }: {
   label: string
   value: string | number
@@ -20,171 +21,255 @@ function StatCard({
   href?: string
 }) {
   const inner = (
-    <div className="rounded-2xl border border-slate-700 bg-slate-800/60 p-6 space-y-1 hover:border-slate-600 transition-colors">
-      <p className="text-sm text-slate-400">{label}</p>
-      <p className="text-3xl font-bold text-slate-50">{value}</p>
-      {sub && <p className="text-xs text-slate-500">{sub}</p>}
+    <div className="border border-sv-border bg-sv-bg p-5 card-lift group">
+      <p className="text-[11px] text-sv-dim uppercase tracking-widest mb-2">{label}</p>
+      <p className="text-2xl font-bold text-sv-text">{value}</p>
+      {sub && <p className="text-xs text-sv-dim mt-1">{sub}</p>}
     </div>
   )
   return href ? <Link href={href}>{inner}</Link> : inner
 }
 
-// ─── Category badge ────────────────────────────────────────────────────────────
+// ─── Category badge ──────────────────────────────────────────────────────────────
 
 const CAT_COLORS: Record<string, string> = {
-  medical:   "bg-rose-500/10 text-rose-400 border-rose-500/20",
-  legal:     "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  financial: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  personal:  "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  medical:   "bg-rose-50 text-rose-700 border-rose-200",
+  legal:     "bg-blue-50 text-blue-700 border-blue-200",
+  financial: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  personal:  "bg-violet-50 text-violet-700 border-violet-200",
 }
 
 function CategoryBadge({ category }: { category: string }) {
-  const cls = CAT_COLORS[category] ?? "bg-slate-700 text-slate-300 border-slate-600"
+  const cls = CAT_COLORS[category] ?? "bg-sv-surface text-sv-muted border-sv-border"
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-medium ${cls}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 border text-[11px] font-medium uppercase tracking-wide ${cls}`}>
       {category}
     </span>
   )
 }
 
-// ─── Quick action ─────────────────────────────────────────────────────────────
+// ─── Quick action ────────────────────────────────────────────────────────────────
 
 function QuickAction({
-  href,
-  icon,
-  label,
-  description,
+  href, icon, label, description,
 }: {
   href: string
-  icon: string
+  icon: React.ReactNode
   label: string
   description: string
 }) {
   return (
     <Link
       href={href}
-      className="flex items-start gap-4 p-4 rounded-xl border border-slate-700 bg-slate-800/40 hover:bg-slate-800/80 hover:border-slate-600 transition-colors"
+      className="group flex items-start gap-3 p-4 border border-sv-border bg-sv-bg card-lift hover:border-sv-border-hi"
     >
-      <span className="text-2xl mt-0.5">{icon}</span>
-      <div>
-        <p className="text-sm font-medium text-slate-100">{label}</p>
-        <p className="text-xs text-slate-400 mt-0.5">{description}</p>
+      <div className="w-7 h-7 border border-sv-border bg-sv-surface flex items-center justify-center shrink-0 mt-0.5 group-hover:border-sv-blue group-hover:text-sv-blue transition-colors duration-150">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-sv-text uppercase tracking-wide group-hover:text-sv-blue transition-colors duration-150">{label}</p>
+        <p className="text-xs text-sv-muted mt-0.5 leading-relaxed">{description}</p>
       </div>
     </Link>
   )
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── File icon ────────────────────────────────────────────────────────────────────
+
+function FileTypeIcon({ fileType }: { fileType: string }) {
+  const cls = "w-4 h-4 text-sv-dim shrink-0"
+  if (fileType.startsWith("image/")) return <ImageIcon className={cls} />
+  if (fileType === "application/pdf") return <FileText className={cls} />
+  if (fileType.startsWith("text/"))  return <FileText className={cls} />
+  return <Paperclip className={cls} />
+}
+
+// ─── Spinner ──────────────────────────────────────────────────────────────────────
+
+function Spinner({ label }: { label?: string }) {
+  return (
+    <main className="min-h-screen flex items-center justify-center">
+      <div className="text-center space-y-3">
+        <div className="w-5 h-5 mx-auto border-2 border-sv-blue border-t-transparent animate-spin" />
+        {label && <p className="text-sv-dim text-xs">{label}</p>}
+      </div>
+    </main>
+  )
+}
+
+// ─── Feature list items ───────────────────────────────────────────────────────────
+
+const FEATURE_LIST = [
+  "ENCRYPTED",
+  "TIME-SCOPED",
+  "VERIFIABLE",
+  "TRUSTLESS BY DEFAULT",
+  "ARKIV-NATIVE",
+]
+
+const COMPARISON = {
+  before: [
+    "Files uploaded to centralised servers",
+    "Access links never expire",
+    "Recipients must create an account",
+  ],
+  after: [
+    "Encrypted client-side before upload. Keys stay on device.",
+    "Share links expire exactly when you choose.",
+    "Recipients open the document immediately. Zero friction.",
+  ],
+}
+
+// ─── Page ──────────────────────────────────────────────────────────────────────────
 
 export default function Home() {
   const { ready, isAuthenticated, isDerivingKey, login, walletAddress } = useVaultAuth()
   const { data: vaultItems } = useVaultItems()
   const { data: activeGrants } = useActiveGrants()
 
-  // ── Loading ──
-  if (!ready) {
-    return (
-      <main className="min-h-screen flex items-center justify-center">
-        <div className="w-6 h-6 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
-      </main>
-    )
-  }
+  if (!ready) return <Spinner />
+  if (isAuthenticated && isDerivingKey) return <Spinner label="Unlocking your vault…" />
 
-  // ── Unlocking ──
-  if (isAuthenticated && isDerivingKey) {
-    return (
-      <main className="min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="w-6 h-6 mx-auto rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
-          <p className="text-slate-400 text-sm">Unlocking your vault…</p>
-        </div>
-      </main>
-    )
-  }
-
-  // ── Not logged in ──
+  // ── Landing ──
   if (!isAuthenticated) {
     return (
-      <main className="min-h-[calc(100vh-57px)] flex items-center justify-center px-4">
-        <div className="text-center space-y-6 max-w-md">
-          <div className="w-20 h-20 mx-auto rounded-3xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-            <span className="text-4xl">🔒</span>
+      <main className="min-h-[calc(100dvh-57px)] flex flex-col">
+
+        {/* Hero */}
+        <section className="flex-1 border-b border-sv-border">
+          <div className="max-w-6xl mx-auto px-6 py-16 grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+
+            {/* Left */}
+            <div className="space-y-8 animate-slide-up">
+              <p className="text-xs text-sv-dim uppercase tracking-widest">[ SV ]</p>
+              <h1 className="text-4xl sm:text-5xl font-bold text-sv-text leading-[1.1] tracking-tight">
+                PRIVATE DOCUMENTS,{" "}
+                <br className="hidden sm:block" />
+                SHARED ON YOUR TERMS.
+              </h1>
+              <p className="text-sm text-sv-muted leading-relaxed max-w-md">
+                A trustless document vault — store encrypted files and share
+                them with time-scoped access links. No counterparty risk.
+                Your keys, your data.
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={login}
+                  className="px-6 py-2.5 bg-sv-blue text-white text-xs font-medium uppercase tracking-wide hover:bg-sv-blue-li transition-colors duration-150"
+                >
+                  Open your vault
+                </button>
+                <span className="text-xs text-sv-dim">No crypto wallet required</span>
+              </div>
+            </div>
+
+            {/* Right — feature list */}
+            <div className="animate-slide-up stagger-2 space-y-4">
+              <div className="border border-sv-border p-6 space-y-2">
+                {FEATURE_LIST.map((f) => (
+                  <div key={f} className="flex items-center gap-3 py-2 border-b border-sv-border last:border-0">
+                    <span className="w-1.5 h-1.5 bg-sv-blue shrink-0" />
+                    <span className="text-xs font-medium text-sv-text uppercase tracking-widest">{f}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-          <div className="space-y-2">
-            <h1 className="text-4xl font-bold text-slate-50">SealVault</h1>
-            <p className="text-slate-400 text-lg">
-              Your private documents, shared on your terms.
-            </p>
+        </section>
+
+        {/* Comparison — mirrors Arkiv's left/right split */}
+        <section className="border-b border-sv-border">
+          <div className="max-w-6xl mx-auto px-6 py-12">
+            <p className="text-[11px] text-sv-dim uppercase tracking-widest mb-8">[ WHY SEALVAULT ]</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-0 border border-sv-border animate-slide-up stagger-3">
+
+              {/* Left — without */}
+              <div className="p-8 border-r border-sv-border space-y-5">
+                <p className="text-sm font-bold text-sv-text uppercase tracking-wide">CURRENT STATE OF DATA</p>
+                <div className="space-y-3">
+                  {COMPARISON.before.map((t) => (
+                    <p key={t} className="text-xs text-sv-muted leading-relaxed border-b border-sv-border pb-3 last:border-0">
+                      {t}
+                    </p>
+                  ))}
+                </div>
+              </div>
+
+              {/* Right — with SealVault (cobalt blue, Arkiv-style) */}
+              <div className="card-blue p-8 space-y-5">
+                <p className="text-sm font-bold uppercase tracking-wide">WITH SEALVAULT</p>
+                <div className="space-y-3">
+                  {COMPARISON.after.map((t) => (
+                    <p key={t} className="text-xs leading-relaxed border-b border-white/20 pb-3 last:border-0 text-white/80">
+                      {t}
+                    </p>
+                  ))}
+                </div>
+              </div>
+
+            </div>
           </div>
-          <div className="space-y-3 text-sm text-slate-500 max-w-xs mx-auto">
-            <p>End-to-end encrypted storage on the Arkiv network.</p>
-            <p>Share any document via a link that expires automatically.</p>
-            <p>Recipients need no account — just the link.</p>
-          </div>
-          <button
-            onClick={login}
-            className="w-full py-3 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold transition-colors text-base"
-          >
-            Sign in to open your vault
-          </button>
-          <p className="text-xs text-slate-600">
-            Sign in with your email — no crypto knowledge needed
+        </section>
+
+        {/* Footer */}
+        <footer className="py-6 px-6">
+          <p className="text-[11px] text-sv-dim text-center">
+            © 2026 SealVault · Your data, your rules · Built on Arkiv Network
           </p>
-        </div>
+        </footer>
       </main>
     )
   }
 
   // ── Dashboard ──
-  const docCount = vaultItems?.length ?? 0
+  const docCount   = vaultItems?.length ?? 0
   const grantCount = activeGrants?.length ?? 0
   const recentDocs = vaultItems?.slice(0, 3) ?? []
 
   return (
-    <main className="max-w-4xl mx-auto px-4 py-10 space-y-10">
+    <main className="max-w-4xl mx-auto px-6 py-10 space-y-10 animate-fade-in">
+
       {/* Greeting */}
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold text-slate-50">Your vault</h1>
-        <p className="text-slate-400 text-sm">
-          {walletAddress && (
-            <span className="font-mono">{walletAddress.slice(0, 10)}…{walletAddress.slice(-6)}</span>
-          )}
-        </p>
+      <div className="space-y-1 pb-4 border-b border-sv-border">
+        <p className="text-[11px] text-sv-dim uppercase tracking-widest">[ YOUR VAULT ]</p>
+        <h1 className="text-lg font-bold text-sv-text mt-1">
+          {walletAddress
+            ? `${walletAddress.slice(0, 10)}…${walletAddress.slice(-6)}`
+            : "Welcome back"}
+        </h1>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        <StatCard
-          label="Documents"
-          value={docCount}
-          sub={docCount === 1 ? "1 file" : `${docCount} files`}
-          href="/vault"
-        />
-        <StatCard
-          label="Active shares"
-          value={grantCount}
-          sub={grantCount === 0 ? "No links out" : `${grantCount} link${grantCount !== 1 ? "s" : ""} active`}
-          href="/grants"
-        />
-        <StatCard
-          label="Encryption"
-          value="AES-256"
-          sub="Keys never leave your device"
-        />
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-0 border border-sv-border divide-x divide-sv-border">
+        <div className="p-5">
+          <p className="text-[11px] text-sv-dim uppercase tracking-widest mb-2">Documents</p>
+          <p className="text-2xl font-bold text-sv-text">{docCount}</p>
+          <p className="text-xs text-sv-dim mt-1">{docCount} encrypted</p>
+        </div>
+        <div className="p-5">
+          <p className="text-[11px] text-sv-dim uppercase tracking-widest mb-2">Active shares</p>
+          <p className="text-2xl font-bold text-sv-text">{grantCount}</p>
+          <p className="text-xs text-sv-dim mt-1">
+            {grantCount === 0 ? "No links out" : `${grantCount} link${grantCount !== 1 ? "s" : ""} active`}
+          </p>
+        </div>
+        <div className="p-5 col-span-2 sm:col-span-1 border-t sm:border-t-0 border-sv-border">
+          <p className="text-[11px] text-sv-dim uppercase tracking-widest mb-2">Encryption</p>
+          <p className="text-2xl font-bold text-sv-text">AES-256</p>
+          <p className="text-xs text-sv-dim mt-1">Keys stay on device</p>
+        </div>
       </div>
 
       {/* Recent documents */}
       {recentDocs.length > 0 && (
-        <section className="space-y-3">
+        <section className="space-y-3 animate-slide-up">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
-              Recent documents
-            </h2>
-            <Link href="/vault" className="text-xs text-amber-400 hover:text-amber-300 transition-colors">
+            <p className="text-[11px] text-sv-dim uppercase tracking-widest">[ RECENT DOCUMENTS ]</p>
+            <Link href="/vault" className="text-xs text-sv-blue hover:text-sv-blue-li transition-colors">
               View all →
             </Link>
           </div>
-          <div className="space-y-2">
+          <div className="border border-sv-border divide-y divide-sv-border">
             {recentDocs.map((e) => {
               const a = (e.attributes ?? []) as Array<{ key: string; value: string | number }>
               const label    = String(getAttributeValue(a, "label") ?? "Untitled")
@@ -195,14 +280,14 @@ export default function Home() {
               return (
                 <div
                   key={String(e.key)}
-                  className="flex items-center justify-between px-4 py-3 rounded-xl border border-slate-700 bg-slate-800/40"
+                  className="flex items-center justify-between px-4 py-3 hover:bg-sv-surface transition-colors duration-150"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-lg shrink-0">{fileIcon(fileType)}</span>
+                    <FileTypeIcon fileType={fileType} />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-100 truncate">{label}</p>
+                      <p className="text-xs font-medium text-sv-text truncate">{label}</p>
                       {createdAt && (
-                        <p className="text-xs text-slate-500">
+                        <p className="text-[11px] text-sv-dim tabular-nums">
                           {new Date(createdAt).toLocaleDateString()}
                         </p>
                       )}
@@ -217,39 +302,30 @@ export default function Home() {
       )}
 
       {/* Quick actions */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
-          Quick actions
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <section className="space-y-3 animate-slide-up stagger-2">
+        <p className="text-[11px] text-sv-dim uppercase tracking-widest">[ QUICK ACTIONS ]</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-0 border border-sv-border divide-y sm:divide-y-0 sm:divide-x divide-sv-border">
           <QuickAction
             href="/vault"
-            icon="📁"
+            icon={<FolderOpen className="w-3.5 h-3.5 text-sv-muted" />}
             label="Manage vault"
             description="Upload documents and share them"
           />
           <QuickAction
             href="/grants"
-            icon="🔗"
+            icon={<Share2 className="w-3.5 h-3.5 text-sv-muted" />}
             label="Active shares"
-            description="Revoke or extend your magic links"
+            description="Revoke or extend time-scoped links"
           />
           <QuickAction
             href="/agent"
-            icon="🤖"
+            icon={<Bot className="w-3.5 h-3.5 text-sv-muted" />}
             label="AI assistant"
             description="Ask questions, manage by voice"
           />
         </div>
       </section>
+
     </main>
   )
-}
-
-function fileIcon(fileType: string): string {
-  if (fileType.startsWith("image/"))       return "🖼️"
-  if (fileType === "application/pdf")      return "📄"
-  if (fileType.startsWith("text/"))        return "📝"
-  if (fileType.includes("spreadsheet") || fileType.includes("excel")) return "📊"
-  return "📎"
 }
