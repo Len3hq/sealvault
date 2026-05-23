@@ -209,7 +209,11 @@ export function useAgentChat({
         writeActions: writeActionsRef.current,
       }),
     })
-      .then(() => setMemorySaved(true))
+      .then(async (res) => {
+        if (!res.ok) return
+        const data = await res.json().catch(() => ({})) as { skipped?: boolean }
+        if (!data.skipped) setMemorySaved(true)
+      })
       .catch(() => { /* non-fatal */ })
   }, [chat.status, chat.messages, walletAddress, signature])
 

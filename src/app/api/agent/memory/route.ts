@@ -48,10 +48,12 @@ export async function POST(req: NextRequest) {
     const result = await generateObject({
       model: openai("gpt-4o-mini"),
       schema: MemorySummarySchema,
-      prompt: `You are saving memory for a personal document vault assistant.\n\nDecide whether this conversation is worth remembering. Save it if it contains any of: facts about people (names, roles, relationships), context about the user's situation, actions taken, or preferences expressed. Skip it if it was purely a trivial lookup with nothing to recall.\n\nWrite actions performed: ${writeActions.join(", ") || "none"}\n\nTranscript:\n${transcript}`,
+      prompt: `You are saving memory for a personal document vault assistant.\n\nDecide whether this conversation is worth remembering. Save it if it contains any of: facts about people (names, roles, relationships), context about the user's situation, actions taken, or preferences expressed. Skip it only if it was a single trivial exchange with absolutely nothing to recall.\n\nWrite actions performed: ${writeActions.join(", ") || "none"}\n\nTranscript:\n${transcript}`,
     })
     summary = result.object
-  } catch {
+  } catch (err) {
+    console.error("[memory] generateObject failed:", err)
+    // Fallback: always save if there were write actions; otherwise skip
     if (writeActions.length === 0) return NextResponse.json({ skipped: true })
     summary = {
       worth_saving: true,
@@ -65,13 +67,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ skipped: true })
   }
 
-  const walletClient = getRelayerClient() as unknown as WalletClient
-  const { entityKey } = await saveConversationMemory(walletClient, {
-    summary:  summary.summary,
-    keyFacts: summary.keyFacts,
-    actions:  summary.actions,
-    ownerAddress,
-  })
-
-  return NextResponse.json({ entityKey, summary: summary.summary })
+  try {
+    const walletClient = getRelayerClient() as unknown as WalletClient
+    const { entityKey } = await saveConversationMemory(walletClient, {
+      summary:  summary.summary,
+      keyFacts: summary.keyFacts,
+      actions:  summary.actions,
+      ownerAddress,
+    })
+    return NextResponse.json({ entityKey, summary: summary.summary })
+  } catch (err) {
+    console.error("[memory] saveConversationMemory failed:", err)
+    return NextResponse.json({ error: "Failed to save memory" }, { status: 500 })
+  }
 }
