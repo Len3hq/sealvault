@@ -16,7 +16,7 @@ import { VaultItemPayloadSchema, parseEntityPayload } from "@/lib/arkiv/payload-
 import { DocumentViewer, DownloadButton } from "@/components/document-viewer"
 import {
   FileText, ImageIcon, Paperclip, Eye, Share2, Trash2,
-  Upload, FolderOpen, Check, Copy, AlertTriangle,
+  Upload, FolderOpen, Check, Copy, AlertTriangle, Search, X,
 } from "lucide-react"
 
 // ─── Utilities ──────────────────────────────────────────────────────────────────
@@ -571,6 +571,7 @@ export default function VaultPage() {
   const queryClient = useQueryClient()
 
   const [categoryFilter, setCategoryFilter] = useState<VaultCategory | "all">("all")
+  const [searchQuery, setSearchQuery] = useState("")
   const [showUpload, setShowUpload] = useState(false)
   const [viewTarget, setViewTarget] = useState<{ key: string; label: string } | null>(null)
   const [shareTarget, setShareTarget] = useState<{ key: string; label: string } | null>(null)
@@ -644,7 +645,16 @@ export default function VaultPage() {
     )
   }
 
-  const items = vaultItems ?? []
+  const allItems = vaultItems ?? []
+
+  // Label search is client-side — category is already pushed to Arkiv as eq("category", ...)
+  const items = searchQuery.trim()
+    ? allItems.filter((e) => {
+        const attrs = (e.attributes ?? []) as Array<{ key: string; value: string | number }>
+        const label = String(attrs.find((a) => a.key === "label")?.value ?? "")
+        return label.toLowerCase().includes(searchQuery.toLowerCase())
+      })
+    : allItems
 
   return (
     <>
@@ -655,7 +665,8 @@ export default function VaultPage() {
           <div>
             <p className="text-[11px] text-sv-dim uppercase tracking-widest">[ DOCUMENTS ]</p>
             <h1 className="text-lg font-bold text-sv-text mt-1">
-              {items.length} {items.length === 1 ? "file" : "files"} · all encrypted
+              {items.length}{allItems.length !== items.length ? ` of ${allItems.length}` : ""}{" "}
+              {allItems.length === 1 ? "file" : "files"} · all encrypted
             </h1>
           </div>
           <button
@@ -667,21 +678,41 @@ export default function VaultPage() {
           </button>
         </div>
 
-        {/* Category filter */}
-        <div className="flex gap-2 flex-wrap">
-          {(["all", ...VAULT_CATEGORIES] as const).map((c) => (
-            <button
-              key={c}
-              onClick={() => setCategoryFilter(c)}
-              className={`px-3 py-1 text-[11px] font-medium uppercase tracking-wide border transition-colors duration-150 ${
-                categoryFilter === c
-                  ? "bg-sv-blue border-sv-blue text-white"
-                  : "border-sv-border text-sv-muted hover:border-sv-border-hi hover:text-sv-text"
-              }`}
-            >
-              {c === "all" ? "All" : c}
-            </button>
-          ))}
+        {/* Search + category filter */}
+        <div className="space-y-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-sv-dim pointer-events-none" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search documents…"
+              className="w-full bg-sv-bg border border-sv-border pl-9 pr-9 py-2.5 text-xs text-sv-text placeholder:text-sv-dim focus:outline-none focus:border-sv-blue transition-colors duration-150"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-sv-dim hover:text-sv-text transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex gap-2 flex-wrap">
+            {(["all", ...VAULT_CATEGORIES] as const).map((c) => (
+              <button
+                key={c}
+                onClick={() => setCategoryFilter(c)}
+                className={`px-3 py-1 text-[11px] font-medium uppercase tracking-wide border transition-colors duration-150 ${
+                  categoryFilter === c
+                    ? "bg-sv-blue border-sv-blue text-white"
+                    : "border-sv-border text-sv-muted hover:border-sv-border-hi hover:text-sv-text"
+                }`}
+              >
+                {c === "all" ? "All" : c}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Document list */}
@@ -689,7 +720,7 @@ export default function VaultPage() {
           <div className="flex items-center justify-center py-20">
             <div className="w-5 h-5 border-2 border-sv-blue border-t-transparent animate-spin" />
           </div>
-        ) : items.length === 0 ? (
+        ) : allItems.length === 0 ? (
           <div className="text-center py-20 space-y-5 animate-scale-in">
             <div className="w-12 h-12 mx-auto border border-sv-border bg-sv-surface flex items-center justify-center">
               <FolderOpen className="w-5 h-5 text-sv-dim" />
@@ -703,6 +734,18 @@ export default function VaultPage() {
               className="px-5 py-2 border border-sv-border text-sv-muted text-xs hover:border-sv-blue hover:text-sv-blue transition-colors duration-150"
             >
               Upload your first document
+            </button>
+          </div>
+        ) : items.length === 0 ? (
+          <div className="text-center py-20 space-y-3 animate-scale-in">
+            <Search className="w-5 h-5 text-sv-dim mx-auto" />
+            <p className="text-sv-text text-sm font-bold uppercase tracking-wide">No results</p>
+            <p className="text-sv-muted text-xs">No documents match &ldquo;{searchQuery}&rdquo;</p>
+            <button
+              onClick={() => setSearchQuery("")}
+              className="text-xs text-sv-blue hover:text-sv-blue-li transition-colors"
+            >
+              Clear search
             </button>
           </div>
         ) : (
