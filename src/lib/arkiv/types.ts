@@ -85,6 +85,7 @@ export interface BuildGrantRecordParams {
   category: VaultCategory
   purpose: string
   durationSeconds: number
+  ownerAddress: string
 }
 
 // ─── Agent Memory: Contact ────────────────────────────────────────────────────
@@ -98,4 +99,5 @@ export interface BuildContactParams {
   email?: string
   tags?: string[]
   notes?: string
+  ownerAddress: string
 }

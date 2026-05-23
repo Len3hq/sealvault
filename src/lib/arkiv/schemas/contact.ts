@@ -8,7 +8,7 @@ import type { BuildContactParams, ContactPayload } from "../types"
 const MAX_TAGS = 10
 
 export function buildContactEntity(params: BuildContactParams): CreateEntityParameters {
-  const { name, email, tags = [], notes = "" } = params
+  const { name, email, tags = [], notes = "", ownerAddress } = params
 
   const payload: ContactPayload = { notes }
   const trimmedTags = tags.slice(0, MAX_TAGS).map((t) => t.trim()).filter(Boolean)
@@ -20,6 +20,7 @@ export function buildContactEntity(params: BuildContactParams): CreateEntityPara
       { key: "project",    value: PROJECT_ATTRIBUTE },
       { key: "type",       value: ENTITY_TYPES.AGENT_MEMORY },
       { key: "subtype",    value: ENTITY_SUBTYPES.CONTACT },
+      { key: "owner",      value: ownerAddress },
       { key: "name",       value: name },
       ...(email ? [{ key: "email", value: email }] : []),
       // Individual tag attributes for per-tag querying (tag_0, tag_1, ...)

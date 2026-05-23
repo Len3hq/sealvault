@@ -4,20 +4,16 @@ import {
   hashGrantToken,
   encryptForGrant,
 } from "@/lib/crypto"
-import {
-  createAccessGrant,
-  createGrantRecord,
-} from "@/lib/arkiv/mutations"
 import { uploadToIPFS } from "@/lib/ipfs"
-import type { WalletClient, VaultItemPayload, AccessGrantPayload } from "@/lib/arkiv/types"
+import { relayPost } from "@/lib/relay"
+import type { VaultItemPayload, AccessGrantPayload } from "@/lib/arkiv/types"
 import type { VaultCategory } from "@/lib/arkiv/constants"
-import { GRANT_STATUS } from "@/lib/arkiv/constants"
 
 export interface CreateGrantParams {
   vaultItemPayload: VaultItemPayload
   masterKey: CryptoKey
-  walletClient: WalletClient
   ownerAddress: string
+  signature: string
   vaultItemKey: string
   label: string
   fileType: string
@@ -36,11 +32,8 @@ export interface CreateGrantResult {
 
 /**
  * Full grant creation flow:
- * 1. Decrypt the vault item content using the owner's master key
- * 2. Generate a random token (becomes the URL slug)
- * 3. Re-encrypt content under the token — grantee decrypts using only the URL
- * 4. Create Arkiv access grant entity (TTL = durationSeconds = revocation timer)
- * 5. Create Arkiv grant record entity (audit trail, outlives the grant)
+ * 1–4  Client-side crypto (decrypt → generate token → re-encrypt → IPFS upload)
+ * 5–6  Server-side relay writes the Arkiv entities (relayer pays gas)
  */
 export async function createMagicLinkGrant(
   params: CreateGrantParams
@@ -48,8 +41,8 @@ export async function createMagicLinkGrant(
   const {
     vaultItemPayload,
     masterKey,
-    walletClient,
     ownerAddress,
+    signature,
     vaultItemKey,
     label,
     fileType,
@@ -66,44 +59,32 @@ export async function createMagicLinkGrant(
   const token = generateGrantToken()
   const tokenHash = hashGrantToken(token)
 
-  // Step 3: Re-encrypt content under the token key, upload ciphertext to IPFS
+  // Step 3: Re-encrypt content under the token key
   const { ciphertext: grantCiphertext, grantIv } = await encryptForGrant(
     new Uint8Array(decrypted.buffer) as Uint8Array<ArrayBuffer>,
     token
   )
+
+  // Step 4: Upload ciphertext to IPFS (server route keeps PINATA_JWT hidden)
   const grantCID = await uploadToIPFS(grantCiphertext)
 
-  // Embed document metadata in the grant payload so grantees
-  // can render the document without querying the vault item entity
-  const accessGrantPayload: AccessGrantPayload = {
-    grantCID,
-    grantIv,
-    label,
-    fileType,
-  }
+  const accessGrantPayload: AccessGrantPayload = { grantCID, grantIv, label, fileType }
 
-  // Step 4: Create the Arkiv access grant entity
-  // expiresIn = durationSeconds — this IS the revocation mechanism
-  const { entityKey: grantEntityKey } = await createAccessGrant(walletClient, {
-    accessGrantPayload,
-    tokenHash,
-    parentVaultItemKey: vaultItemKey,
-    grantedByAddress: ownerAddress,
-    purpose,
-    durationSeconds,
-  })
-
-  // Step 5: Create the audit trail record in agent memory
-  // Uses a 2-year TTL so the history survives long after the grant expires
-  const { entityKey: grantRecordKey } = await createGrantRecord(walletClient, {
-    granteeName,
-    parentVaultItemKey: vaultItemKey,
-    grantEntityKey,
-    status: GRANT_STATUS.ACTIVE,
-    category,
-    purpose,
-    durationSeconds,
-  })
+  // Step 5–6: Relay creates both Arkiv entities (relayer pays gas)
+  const { grantEntityKey, grantRecordKey } = await relayPost(
+    "/api/relay/grant",
+    {
+      accessGrantPayload,
+      tokenHash,
+      parentVaultItemKey: vaultItemKey,
+      purpose,
+      durationSeconds,
+      granteeName,
+      category,
+    },
+    ownerAddress,
+    signature
+  ) as { grantEntityKey: string; grantRecordKey: string }
 
   return { token, tokenHash, grantEntityKey, grantRecordKey }
 }

@@ -2,16 +2,10 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { createMagicLinkGrant } from "@/lib/vault"
-import {
-  revokeAccessGrant,
-  extendAccessGrant,
-  updateGrantRecordStatus,
-} from "@/lib/arkiv/mutations"
-import { GRANT_STATUS } from "@/lib/arkiv/constants"
+import { relayDelete, relayPatch } from "@/lib/relay"
 import { useVaultAuth } from "./use-vault-auth"
-import type { WalletClient, VaultItemPayload } from "@/lib/arkiv/types"
+import type { VaultItemPayload } from "@/lib/arkiv/types"
 import type { VaultCategory } from "@/lib/arkiv/constants"
-import type { Entity } from "@/lib/arkiv/types"
 
 interface CreateGrantInput {
   vaultItemPayload: VaultItemPayload
@@ -24,20 +18,21 @@ interface CreateGrantInput {
   durationSeconds: number
 }
 
-export function useCreateGrant(walletClient: WalletClient) {
-  const { masterKey, walletAddress } = useVaultAuth()
+export function useCreateGrant() {
+  const { masterKey, walletAddress, signature } = useVaultAuth()
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (input: CreateGrantInput) => {
       if (!masterKey) throw new Error("Vault is locked")
       if (!walletAddress) throw new Error("No wallet connected")
+      if (!signature) throw new Error("Wallet not signed in — please refresh")
 
       return createMagicLinkGrant({
         ...input,
         masterKey,
-        walletClient,
         ownerAddress: walletAddress,
+        signature,
       })
     },
     onSuccess: () => {
@@ -46,29 +41,14 @@ export function useCreateGrant(walletClient: WalletClient) {
   })
 }
 
-interface RevokeInput {
-  grantEntityKey: string
-  grantRecord?: Entity
-}
-
-export function useRevokeGrant(walletClient: WalletClient | null) {
+export function useRevokeGrant() {
+  const { walletAddress, signature } = useVaultAuth()
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ grantEntityKey, grantRecord }: RevokeInput) => {
-      if (!walletClient) throw new Error("Wallet not connected")
-      // Delete the grant entity — magic link stops working immediately
-      await revokeAccessGrant(walletClient, grantEntityKey)
-
-      // Update the audit record so history reflects the revocation
-      if (grantRecord?.payload) {
-        await updateGrantRecordStatus(
-          walletClient,
-          grantRecord,
-          GRANT_STATUS.REVOKED,
-          "Manually revoked"
-        )
-      }
+    mutationFn: async ({ grantEntityKey }: { grantEntityKey: string }) => {
+      if (!walletAddress || !signature) throw new Error("Not authenticated")
+      await relayDelete("/api/relay/grant", { grantEntityKey }, walletAddress, signature)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["grants"] })
@@ -77,18 +57,14 @@ export function useRevokeGrant(walletClient: WalletClient | null) {
   })
 }
 
-interface ExtendInput {
-  grantEntityKey: string
-  additionalSeconds: number
-}
-
-export function useExtendGrant(walletClient: WalletClient | null) {
+export function useExtendGrant() {
+  const { walletAddress, signature } = useVaultAuth()
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ grantEntityKey, additionalSeconds }: ExtendInput) => {
-      if (!walletClient) throw new Error("Wallet not connected")
-      await extendAccessGrant(walletClient, grantEntityKey, additionalSeconds)
+    mutationFn: async ({ grantEntityKey, additionalSeconds }: { grantEntityKey: string; additionalSeconds: number }) => {
+      if (!walletAddress || !signature) throw new Error("Not authenticated")
+      await relayPatch("/api/relay/grant", { grantEntityKey, additionalSeconds }, walletAddress, signature)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["grants"] })

@@ -97,8 +97,8 @@ describe("buildVaultItemEntity", () => {
     expect(parsed.version).toBe(1)
   })
 
-  it("has exactly 7 attributes", () => {
-    expect(entity.attributes).toHaveLength(7)
+  it("has exactly 8 attributes", () => {
+    expect(entity.attributes).toHaveLength(8)
   })
 })
 
@@ -187,6 +187,7 @@ describe("buildGrantRecordEntity", () => {
     category: "medical" as const,
     purpose: "Specialist consultation",
     durationSeconds: 86400,
+    ownerAddress: "0xowner",
   }
 
   const entity = buildGrantRecordEntity(params)
@@ -252,6 +253,7 @@ describe("buildContactEntity", () => {
       email: "smith@clinic.com",
       tags: ["medical", "trusted"],
       notes: "My GP",
+      ownerAddress: "0xowner",
     })
 
     expect(getAttr(entity.attributes, "project")).toBe(PROJECT_ATTRIBUTE)
@@ -269,7 +271,7 @@ describe("buildContactEntity", () => {
   })
 
   it("builds contact without optional fields", () => {
-    const entity = buildContactEntity({ name: "Alice" })
+    const entity = buildContactEntity({ name: "Alice", ownerAddress: "0xowner" })
 
     expect(getAttr(entity.attributes, "name")).toBe("Alice")
     expect(getAttr(entity.attributes, "tag_count")).toBe(0)
@@ -278,13 +280,13 @@ describe("buildContactEntity", () => {
   })
 
   it("stores notes in payload bytes", () => {
-    const entity = buildContactEntity({ name: "Bob", notes: "Lawyer" })
+    const entity = buildContactEntity({ name: "Bob", notes: "Lawyer", ownerAddress: "0xowner" })
     const parsed = decodePayload(entity.payload)
     expect(parsed.notes).toBe("Lawyer")
   })
 
   it("uses 5-year TTL", () => {
-    const entity = buildContactEntity({ name: "X" })
+    const entity = buildContactEntity({ name: "X", ownerAddress: "0xowner" })
     expect(entity.expiresIn).toBe(TTL.AGENT_CONTACT)
   })
 })

@@ -3,7 +3,7 @@
 import { useRef, useEffect, FormEvent } from "react"
 import { isToolUIPart, isTextUIPart, getToolName } from "ai"
 import { useVaultAuth } from "@/hooks/use-vault-auth"
-import { useArkivWallet } from "@/hooks/use-arkiv-wallet"
+
 import { useAgentChat } from "@/hooks/use-agent-chat"
 import type { UIMessage, UIMessagePart, UIDataTypes, UITools } from "ai"
 
@@ -137,13 +137,12 @@ const SUGGESTIONS = [
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AgentPage() {
-  const { isAuthenticated, isVaultReady, masterKey, walletAddress, login } = useVaultAuth()
-  const walletClient = useArkivWallet()
+  const { isAuthenticated, isVaultReady, masterKey, walletAddress, signature, login } = useVaultAuth()
 
   const { messages, sendMessage, status, error } = useAgentChat({
     masterKey,
     walletAddress,
-    walletClient,
+    signature,
   })
 
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -219,7 +218,7 @@ export default function AgentPage() {
         <div>
           <h1 className="text-sm font-semibold text-slate-100">SealVault Agent</h1>
           <p className="text-xs text-slate-500">
-            {walletClient ? "Vault unlocked · ready" : "Connecting wallet…"}
+            {masterKey ? "Vault unlocked · ready" : "Connecting…"}
           </p>
         </div>
       </div>

@@ -60,11 +60,12 @@ export const VAULT_CATEGORIES = [
 
 export type VaultCategory = (typeof VAULT_CATEGORIES)[number]
 
-// Braga is a private testnet — zero gas price transactions are permitted.
 // Fixed gas avoids eth_estimateGas, which fails on large encoded payloads.
+// gasPrice must exceed Braga's baseFee (~251 wei); 1000n gives a safe margin
+// while keeping per-tx cost negligible (~0.00000005 GLM per 50M-gas tx).
 export const DEFAULT_TX_PARAMS = {
   gas: 50_000_000n,
-  gasPrice: 0n,
+  gasPrice: 1_000n,
 } as const
 
 export const GRANT_STATUS = {

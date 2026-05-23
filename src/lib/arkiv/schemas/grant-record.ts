@@ -14,6 +14,7 @@ export function buildGrantRecordEntity(
     category,
     purpose,
     durationSeconds,
+    ownerAddress,
   } = params
 
   const now = Date.now()
@@ -31,9 +32,10 @@ export function buildGrantRecordEntity(
       { key: "project",      value: PROJECT_ATTRIBUTE },
       { key: "type",         value: ENTITY_TYPES.AGENT_MEMORY },
       { key: "subtype",      value: ENTITY_SUBTYPES.GRANT_RECORD },
+      { key: "owner",        value: ownerAddress },
       { key: "grantee_name", value: granteeName },
-      { key: "parent_key",   value: parentVaultItemKey }, // links to vault item
-      { key: "grant_entity", value: grantEntityKey },     // links to access grant
+      { key: "parent_key",   value: parentVaultItemKey },
+      { key: "grant_entity", value: grantEntityKey },
       { key: "status",       value: status },
       { key: "category",     value: category },
       { key: "granted_at",   value: now },

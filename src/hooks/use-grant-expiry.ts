@@ -4,26 +4,31 @@ import { useEffect } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { subscribeSealVaultEvents } from "@/lib/arkiv/events/subscription"
 import { publicClient } from "@/lib/arkiv/client"
-import type { WalletClient } from "@/lib/arkiv/types"
+import { useVaultAuth } from "./use-vault-auth"
 
-/**
- * Subscribes to on-chain grant lifecycle events while mounted.
- * Updates the grants query cache when a grant expires or is deleted externally.
- * Also triggers updateGrantRecordStatus so audit records stay accurate.
- */
-export function useGrantExpiry(
-  walletClient: WalletClient | null,
-  ownerAddress: string | undefined
-) {
+export function useGrantExpiry(ownerAddress: string | undefined) {
+  const { signature } = useVaultAuth()
   const queryClient = useQueryClient()
 
   useEffect(() => {
-    if (!walletClient || !ownerAddress) return
+    if (!ownerAddress || !signature) return
 
     let unsub: (() => void) | undefined
 
-    subscribeSealVaultEvents(publicClient, walletClient, ownerAddress, {
-      onGrantExpired: () => {
+    subscribeSealVaultEvents(publicClient, ownerAddress, {
+      onGrantExpired: async (grantEntityKey) => {
+        // Notify relay to update the audit record status
+        try {
+          await fetch("/api/relay/grant", {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "x-owner-address": ownerAddress,
+              "x-signature": signature,
+            },
+            body: JSON.stringify({ grantEntityKey }),
+          })
+        } catch { /* non-fatal */ }
         queryClient.invalidateQueries({ queryKey: ["grants"] })
       },
       onGrantRevoked: () => {
@@ -39,5 +44,5 @@ export function useGrantExpiry(
     return () => {
       unsub?.()
     }
-  }, [walletClient, ownerAddress, queryClient])
+  }, [ownerAddress, signature, queryClient])
 }

@@ -3,15 +3,9 @@ import { createMagicLinkGrant } from "@/lib/vault/grant-flow"
 import { encryptVaultItem, decryptGrant } from "@/lib/crypto"
 import { deriveMasterKey } from "@/lib/crypto/keys"
 import { hashGrantToken } from "@/lib/crypto/grant"
-import { GRANT_STATUS } from "@/lib/arkiv/constants"
-import type { VaultItemPayload, WalletClient } from "@/lib/arkiv/types"
+import type { VaultItemPayload } from "@/lib/arkiv/types"
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
-
-vi.mock("@/lib/arkiv/mutations", () => ({
-  createAccessGrant: vi.fn().mockResolvedValue({ entityKey: "0xGrantKey" }),
-  createGrantRecord: vi.fn().mockResolvedValue({ entityKey: "0xRecordKey" }),
-}))
 
 // fetchFromIPFS is called by decryptVaultItem (for vault item ciphertext).
 // uploadToIPFS is called by createMagicLinkGrant (for grant ciphertext).
@@ -20,8 +14,18 @@ vi.mock("@/lib/ipfs", () => ({
   uploadToIPFS: vi.fn().mockResolvedValue("QmGrantCid"),
 }))
 
-import { createAccessGrant, createGrantRecord } from "@/lib/arkiv/mutations"
+// relayPost replaces the direct Arkiv SDK writes (server handles them)
+vi.mock("@/lib/relay", () => ({
+  relayPost: vi.fn().mockResolvedValue({
+    grantEntityKey: "0xGrantKey",
+    grantRecordKey: "0xRecordKey",
+  }),
+  relayDelete: vi.fn(),
+  relayPatch: vi.fn(),
+}))
+
 import { fetchFromIPFS, uploadToIPFS } from "@/lib/ipfs"
+import { relayPost } from "@/lib/relay"
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -30,18 +34,9 @@ let vaultItemPayload: VaultItemPayload
 let vaultCiphertext: Uint8Array<ArrayBuffer>
 const DOCUMENT_CONTENT = "Patient: John Doe\nDiagnosis: Annual checkup — all clear."
 
-function makeMockWalletClient(): WalletClient {
-  return {
-    createEntity:   vi.fn().mockResolvedValue({ entityKey: "0xEntity", txHash: "0xtx" }),
-    updateEntity:   vi.fn().mockResolvedValue(undefined),
-    deleteEntity:   vi.fn().mockResolvedValue(undefined),
-    mutateEntities: vi.fn().mockResolvedValue({ createdEntities: [], updatedEntities: [], deletedEntities: [], extendedEntities: [], ownershipChanges: [], txHash: "0xtx" }),
-    extendEntity:   vi.fn().mockResolvedValue(undefined),
-  }
-}
-
 const BASE_PARAMS = {
   ownerAddress:    "0xOwner" as const,
+  signature:       "0xSig" as const,
   vaultItemKey:    "0xVaultItem",
   label:           "Blood Work 2026",
   fileType:        "text/plain",
@@ -61,24 +56,20 @@ beforeAll(async () => {
 // ─── createMagicLinkGrant ─────────────────────────────────────────────────────
 
 describe("createMagicLinkGrant", () => {
-  // Each test needs fetchFromIPFS to return the vault ciphertext (for decryptVaultItem)
-  // and uploadToIPFS to return a fake grant CID (for the grant re-encryption step).
   beforeEach(() => {
     vi.mocked(fetchFromIPFS).mockImplementation(async (cid) => {
       if (cid === "QmVaultCid") return vaultCiphertext
       throw new Error(`Unexpected CID in test: ${cid}`)
     })
     vi.mocked(uploadToIPFS).mockResolvedValue("QmGrantCid")
+    vi.mocked(relayPost).mockResolvedValue({
+      grantEntityKey: "0xGrantKey",
+      grantRecordKey: "0xRecordKey",
+    })
   })
 
   it("returns a token, tokenHash, grantEntityKey, and grantRecordKey", async () => {
-    const wallet = makeMockWalletClient()
-    const result = await createMagicLinkGrant({
-      ...BASE_PARAMS,
-      vaultItemPayload,
-      masterKey,
-      walletClient: wallet,
-    })
+    const result = await createMagicLinkGrant({ ...BASE_PARAMS, vaultItemPayload, masterKey })
 
     expect(result).toHaveProperty("token")
     expect(result).toHaveProperty("tokenHash")
@@ -87,104 +78,57 @@ describe("createMagicLinkGrant", () => {
   })
 
   it("token is a 66-char 0x-prefixed hex string (32 bytes)", async () => {
-    const wallet = makeMockWalletClient()
-    const { token } = await createMagicLinkGrant({
-      ...BASE_PARAMS,
-      vaultItemPayload,
-      masterKey,
-      walletClient: wallet,
-    })
+    const { token } = await createMagicLinkGrant({ ...BASE_PARAMS, vaultItemPayload, masterKey })
     expect(token).toMatch(/^0x[0-9a-f]{64}$/i)
   })
 
   it("tokenHash matches keccak256(token)", async () => {
-    const wallet = makeMockWalletClient()
-    const { token, tokenHash } = await createMagicLinkGrant({
-      ...BASE_PARAMS,
-      vaultItemPayload,
-      masterKey,
-      walletClient: wallet,
-    })
+    const { token, tokenHash } = await createMagicLinkGrant({ ...BASE_PARAMS, vaultItemPayload, masterKey })
     expect(tokenHash).toBe(hashGrantToken(token))
   })
 
-  it("creates an access grant entity with the token hash and duration", async () => {
-    vi.mocked(createAccessGrant).mockClear()
-    const wallet = makeMockWalletClient()
-    const { tokenHash } = await createMagicLinkGrant({
-      ...BASE_PARAMS,
-      vaultItemPayload,
-      masterKey,
-      walletClient: wallet,
-    })
+  it("calls relay with correct grant params", async () => {
+    vi.mocked(relayPost).mockClear()
+    const { tokenHash } = await createMagicLinkGrant({ ...BASE_PARAMS, vaultItemPayload, masterKey })
 
-    expect(createAccessGrant).toHaveBeenCalledOnce()
-    const call = vi.mocked(createAccessGrant).mock.calls[0][1]
-    expect(call.tokenHash).toBe(tokenHash)
-    expect(call.parentVaultItemKey).toBe(BASE_PARAMS.vaultItemKey)
-    expect(call.grantedByAddress).toBe(BASE_PARAMS.ownerAddress)
-    expect(call.purpose).toBe(BASE_PARAMS.purpose)
-    expect(call.durationSeconds).toBe(BASE_PARAMS.durationSeconds)
+    expect(relayPost).toHaveBeenCalledOnce()
+    const [endpoint, body, ownerAddress, signature] = vi.mocked(relayPost).mock.calls[0]
+    expect(endpoint).toBe("/api/relay/grant")
+    expect(body).toMatchObject({
+      tokenHash,
+      parentVaultItemKey: BASE_PARAMS.vaultItemKey,
+      purpose: BASE_PARAMS.purpose,
+      durationSeconds: BASE_PARAMS.durationSeconds,
+      granteeName: BASE_PARAMS.granteeName,
+      category: BASE_PARAMS.category,
+    })
+    expect(ownerAddress).toBe(BASE_PARAMS.ownerAddress)
+    expect(signature).toBe(BASE_PARAMS.signature)
   })
 
-  it("creates a grant record with active status and correct links", async () => {
-    vi.mocked(createGrantRecord).mockClear()
-    vi.mocked(createAccessGrant).mockResolvedValueOnce({ entityKey: "0xSpecificGrantKey" })
-    const wallet = makeMockWalletClient()
+  it("embeds label and fileType in the access grant payload sent to relay", async () => {
+    vi.mocked(relayPost).mockClear()
+    await createMagicLinkGrant({ ...BASE_PARAMS, vaultItemPayload, masterKey })
 
-    await createMagicLinkGrant({
-      ...BASE_PARAMS,
-      vaultItemPayload,
-      masterKey,
-      walletClient: wallet,
-    })
-
-    expect(createGrantRecord).toHaveBeenCalledOnce()
-    const call = vi.mocked(createGrantRecord).mock.calls[0][1]
-    expect(call.granteeName).toBe("Dr. Smith")
-    expect(call.parentVaultItemKey).toBe(BASE_PARAMS.vaultItemKey)
-    expect(call.grantEntityKey).toBe("0xSpecificGrantKey")
-    expect(call.status).toBe(GRANT_STATUS.ACTIVE)
-    expect(call.category).toBe("medical")
-    expect(call.purpose).toBe(BASE_PARAMS.purpose)
-    expect(call.durationSeconds).toBe(BASE_PARAMS.durationSeconds)
+    const [, body] = vi.mocked(relayPost).mock.calls[0]
+    const payload = (body as { accessGrantPayload: { label: string; fileType: string } }).accessGrantPayload
+    expect(payload.label).toBe("Blood Work 2026")
+    expect(payload.fileType).toBe("text/plain")
   })
 
-  it("embeds label and fileType in the grant payload", async () => {
-    vi.mocked(createAccessGrant).mockClear()
-    const wallet = makeMockWalletClient()
-
-    await createMagicLinkGrant({
-      ...BASE_PARAMS,
-      vaultItemPayload,
-      masterKey,
-      walletClient: wallet,
+  it("grantEntityKey and grantRecordKey come from relay response", async () => {
+    vi.mocked(relayPost).mockResolvedValueOnce({
+      grantEntityKey: "0xGrantABC",
+      grantRecordKey: "0xRecordXYZ",
     })
 
-    const call = vi.mocked(createAccessGrant).mock.calls[0][1]
-    expect(call.accessGrantPayload.label).toBe("Blood Work 2026")
-    expect(call.accessGrantPayload.fileType).toBe("text/plain")
-  })
-
-  it("grantEntityKey and grantRecordKey match what the mutations return", async () => {
-    vi.mocked(createAccessGrant).mockResolvedValueOnce({ entityKey: "0xGrantABC" })
-    vi.mocked(createGrantRecord).mockResolvedValueOnce({ entityKey: "0xRecordXYZ" })
-    const wallet = makeMockWalletClient()
-
-    const result = await createMagicLinkGrant({
-      ...BASE_PARAMS,
-      vaultItemPayload,
-      masterKey,
-      walletClient: wallet,
-    })
+    const result = await createMagicLinkGrant({ ...BASE_PARAMS, vaultItemPayload, masterKey })
 
     expect(result.grantEntityKey).toBe("0xGrantABC")
     expect(result.grantRecordKey).toBe("0xRecordXYZ")
   })
 
   it("end-to-end: token from result can decrypt the grant payload", async () => {
-    vi.mocked(createAccessGrant).mockClear()
-    // Capture the grant ciphertext uploaded to IPFS so decryptGrant can use it
     let capturedGrantBytes: Uint8Array<ArrayBuffer> | undefined
     vi.mocked(uploadToIPFS).mockImplementationOnce(async (bytes) => {
       capturedGrantBytes = bytes
@@ -196,40 +140,34 @@ describe("createMagicLinkGrant", () => {
       throw new Error(`Unexpected CID: ${cid}`)
     })
 
-    const wallet = makeMockWalletClient()
-    const { token } = await createMagicLinkGrant({
-      ...BASE_PARAMS,
-      vaultItemPayload,
-      masterKey,
-      walletClient: wallet,
+    // Capture the accessGrantPayload sent to relay
+    let capturedGrantPayload: { grantCID: string; grantIv: string } | undefined
+    vi.mocked(relayPost).mockImplementationOnce(async (_endpoint, body) => {
+      capturedGrantPayload = (body as { accessGrantPayload: { grantCID: string; grantIv: string } }).accessGrantPayload
+      return { grantEntityKey: "0xGrant", grantRecordKey: "0xRecord" }
     })
 
-    const grantPayload = vi.mocked(createAccessGrant).mock.calls[0][1].accessGrantPayload
-    const decrypted = await decryptGrant(grantPayload, token)
+    const { token } = await createMagicLinkGrant({ ...BASE_PARAMS, vaultItemPayload, masterKey })
+
+    expect(capturedGrantPayload).toBeDefined()
+    const decrypted = await decryptGrant(capturedGrantPayload!, token)
     expect(new TextDecoder().decode(decrypted)).toBe(DOCUMENT_CONTENT)
   })
 
   it("different calls produce different tokens", async () => {
-    const wallet = makeMockWalletClient()
     const [r1, r2] = await Promise.all([
-      createMagicLinkGrant({ ...BASE_PARAMS, vaultItemPayload, masterKey, walletClient: wallet }),
-      createMagicLinkGrant({ ...BASE_PARAMS, vaultItemPayload, masterKey, walletClient: wallet }),
+      createMagicLinkGrant({ ...BASE_PARAMS, vaultItemPayload, masterKey }),
+      createMagicLinkGrant({ ...BASE_PARAMS, vaultItemPayload, masterKey }),
     ])
     expect(r1.token).not.toBe(r2.token)
     expect(r1.tokenHash).not.toBe(r2.tokenHash)
   })
 
-  it("throws when walletClient createAccessGrant rejects", async () => {
-    vi.mocked(createAccessGrant).mockRejectedValueOnce(new Error("Arkiv write failed"))
-    const wallet = makeMockWalletClient()
+  it("throws when relay rejects", async () => {
+    vi.mocked(relayPost).mockRejectedValueOnce(new Error("Relay failed"))
 
     await expect(
-      createMagicLinkGrant({
-        ...BASE_PARAMS,
-        vaultItemPayload,
-        masterKey,
-        walletClient: wallet,
-      })
-    ).rejects.toThrow("Arkiv write failed")
+      createMagicLinkGrant({ ...BASE_PARAMS, vaultItemPayload, masterKey })
+    ).rejects.toThrow("Relay failed")
   })
 })

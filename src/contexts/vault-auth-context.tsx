@@ -59,6 +59,7 @@ interface VaultAuthState {
   keyError: string | null
   isVaultReady: boolean
   walletAddress: string | undefined
+  signature: string | null
   retryKeyDerivation: () => void
   login: () => void
   logout: () => Promise<void>
@@ -74,6 +75,7 @@ export function VaultAuthProvider({ children }: { children: ReactNode }) {
   const [masterKey, setMasterKey] = useState<CryptoKey | null>(null)
   const [isDerivingKey, setIsDerivingKey] = useState(false)
   const [keyError, setKeyError] = useState<string | null>(null)
+  const [signature, setSignature] = useState<string | null>(null)
   const derivingRef = useRef(false)
 
   const embeddedWallet = getEmbeddedConnectedWallet(wallets)
@@ -98,9 +100,10 @@ export function VaultAuthProvider({ children }: { children: ReactNode }) {
           .then((sig) => { setCachedSignature(address, sig); return sig })
 
     sigPromise
-      .then((signature) => {
+      .then((sig) => {
         if (cancelled) return
-        return deriveMasterKey(signature)
+        setSignature(sig)
+        return deriveMasterKey(sig)
       })
       .then((key) => {
         if (cancelled || !key) return
@@ -142,6 +145,7 @@ export function VaultAuthProvider({ children }: { children: ReactNode }) {
     if (embeddedWallet) clearCachedSignature(embeddedWallet.address)
     setKeyError(null)
     setMasterKey(null)
+    setSignature(null)
     derivingRef.current = false
     setIsDerivingKey(false)
   }, [embeddedWallet])
@@ -150,6 +154,7 @@ export function VaultAuthProvider({ children }: { children: ReactNode }) {
     if (embeddedWallet) clearCachedSignature(embeddedWallet.address)
     setMasterKey(null)
     setKeyError(null)
+    setSignature(null)
     derivingRef.current = false
     setIsDerivingKey(false)
     await logout()
@@ -165,6 +170,7 @@ export function VaultAuthProvider({ children }: { children: ReactNode }) {
         isDerivingKey,
         keyError,
         isVaultReady: ready && (!authenticated || !!masterKey || !!keyError),
+        signature,
         walletAddress: embeddedWallet?.address as string | undefined,
         retryKeyDerivation,
         login,

@@ -29,6 +29,7 @@ export function buildAccessGrantEntity(
     attributes: [
       { key: "project",     value: PROJECT_ATTRIBUTE },
       { key: "type",        value: ENTITY_TYPES.ACCESS_GRANT },
+      { key: "owner",       value: grantedByAddress },
       { key: "token_hash",  value: tokenHash },
       { key: "parent_key",  value: parentVaultItemKey },
       { key: "granted_by",  value: grantedByAddress },

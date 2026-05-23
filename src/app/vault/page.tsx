@@ -3,19 +3,16 @@
 import { useState, useRef, useCallback } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useVaultAuth } from "@/hooks/use-vault-auth"
-import { useArkivWallet } from "@/hooks/use-arkiv-wallet"
 import { useVaultItems } from "@/hooks/use-vault-items"
 import { useCreateGrant } from "@/hooks/use-grant-actions"
 import { queryVaultItemByKey } from "@/lib/arkiv/queries"
-import { deleteVaultItemWithGrants } from "@/lib/arkiv/mutations"
-import { createVaultItem } from "@/lib/arkiv/mutations"
 import { encryptVaultItem } from "@/lib/crypto"
 import { uploadToIPFS } from "@/lib/ipfs"
+import { relayPost, relayDelete } from "@/lib/relay"
 import { getAttributeValue } from "@/lib/arkiv/schemas"
 import { VAULT_CATEGORIES } from "@/lib/arkiv/constants"
 import type { VaultCategory } from "@/lib/arkiv/constants"
 import { VaultItemPayloadSchema, parseEntityPayload } from "@/lib/arkiv/payload-schemas"
-import type { WalletClient } from "@/lib/arkiv/types"
 
 // ─── Shared utilities ──────────────────────────────────────────────────────────
 
@@ -64,8 +61,7 @@ function UploadDialog({
   onClose: () => void
   onSuccess: () => void
 }) {
-  const { masterKey, walletAddress } = useVaultAuth()
-  const walletClient = useArkivWallet()
+  const { masterKey, walletAddress, signature } = useVaultAuth()
   const [file, setFile] = useState<File | null>(null)
   const [label, setLabel] = useState("")
   const [category, setCategory] = useState<VaultCategory>("personal")
@@ -83,7 +79,7 @@ function UploadDialog({
     if (!file) return
     if (!masterKey) { setError("Vault is locked — refresh and sign in again"); return }
     if (!walletAddress) { setError("No wallet address found — please reconnect"); return }
-    if (!walletClient) { setError("Wallet not ready — wait a moment and retry"); return }
+    if (!signature) { setError("Wallet not signed in — please refresh and sign in again"); return }
     setError(null)
     try {
       setUploadStep("encrypting")
@@ -92,14 +88,19 @@ function UploadDialog({
       setUploadStep("uploading")
       const cid = await uploadToIPFS(ciphertext)
       setUploadStep("saving")
-      await createVaultItem(walletClient as unknown as WalletClient, {
-        encryptedPayload: { cid, ...keyMaterial },
-        label: label || file.name,
-        category,
-        fileType: file.type || "application/octet-stream",
-        sizeBytes: file.size,
-        ownerAddress: walletAddress,
-      })
+      await relayPost(
+        "/api/relay/vault-item",
+        {
+          cid,
+          ...keyMaterial,
+          label: label || file.name,
+          category,
+          fileType: file.type || "application/octet-stream",
+          sizeBytes: file.size,
+        },
+        walletAddress,
+        signature
+      )
       onSuccess()
       onClose()
     } catch (err) {
@@ -206,8 +207,7 @@ function ShareDialog({
   onClose: () => void
 }) {
   const { masterKey, walletAddress, publicClient } = useVaultAuth()
-  const walletClient = useArkivWallet()
-  const createGrant = useCreateGrant(walletClient as unknown as WalletClient)
+  const createGrant = useCreateGrant()
 
   const [granteeName, setGranteeName] = useState("")
   const [purpose, setPurpose] = useState("")
@@ -216,7 +216,7 @@ function ShareDialog({
   const [copied, setCopied] = useState(false)
 
   async function handleShare() {
-    if (!granteeName.trim() || !masterKey || !walletAddress || !walletClient) return
+    if (!granteeName.trim() || !masterKey || !walletAddress) return
 
     const entity = await queryVaultItemByKey(publicClient, vaultItemKey, walletAddress)
     if (!entity?.payload) return
@@ -478,9 +478,8 @@ function Overlay({ children, onClose }: { children: React.ReactNode; onClose: ()
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function VaultPage() {
-  const { isAuthenticated, isVaultReady, walletAddress, publicClient, login, keyError, retryKeyDerivation } =
+  const { isAuthenticated, isVaultReady, walletAddress, signature, login, keyError, retryKeyDerivation } =
     useVaultAuth()
-  const walletClient = useArkivWallet()
   const queryClient = useQueryClient()
 
   const [categoryFilter, setCategoryFilter] = useState<VaultCategory | "all">("all")
@@ -494,14 +493,14 @@ export default function VaultPage() {
   )
 
   const handleDelete = useCallback(async () => {
-    if (!deleteTarget || !walletClient || !walletAddress) return
+    if (!deleteTarget || !walletAddress || !signature) return
     setDeleting(true)
     try {
-      await deleteVaultItemWithGrants(
-        publicClient,
-        walletClient as unknown as WalletClient,
-        deleteTarget.key,
-        walletAddress
+      await relayDelete(
+        "/api/relay/vault-item",
+        { vaultItemKey: deleteTarget.key },
+        walletAddress,
+        signature
       )
       queryClient.invalidateQueries({ queryKey: ["vault-items"] })
       queryClient.invalidateQueries({ queryKey: ["grants"] })
@@ -509,7 +508,7 @@ export default function VaultPage() {
     } finally {
       setDeleting(false)
     }
-  }, [deleteTarget, walletClient, walletAddress, publicClient, queryClient])
+  }, [deleteTarget, walletAddress, signature, queryClient])
 
   if (!isAuthenticated) {
     return (

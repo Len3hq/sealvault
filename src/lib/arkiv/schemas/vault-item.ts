@@ -4,7 +4,7 @@ import { PROJECT_ATTRIBUTE, ENTITY_TYPES, TTL } from "../constants"
 import type { BuildVaultItemParams } from "../types"
 
 export function buildVaultItemEntity(params: BuildVaultItemParams): CreateEntityParameters {
-  const { encryptedPayload, label, category, fileType, sizeBytes } = params
+  const { encryptedPayload, label, category, fileType, sizeBytes, ownerAddress } = params
 
   return {
     payload: jsonToPayload(encryptedPayload),
@@ -12,6 +12,7 @@ export function buildVaultItemEntity(params: BuildVaultItemParams): CreateEntity
     attributes: [
       { key: "project",    value: PROJECT_ATTRIBUTE },
       { key: "type",       value: ENTITY_TYPES.VAULT_ITEM },
+      { key: "owner",      value: ownerAddress },
       { key: "category",   value: category },
       { key: "label",      value: label },
       { key: "file_type",  value: fileType },

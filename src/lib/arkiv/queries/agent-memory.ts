@@ -17,8 +17,8 @@ export async function queryContacts(
       eq("project", PROJECT_ATTRIBUTE),
       eq("type",    ENTITY_TYPES.AGENT_MEMORY),
       eq("subtype", ENTITY_SUBTYPES.CONTACT),
+      eq("owner",   ownerAddress),
     ])
-    .createdBy(ownerAddress as `0x${string}`)
     .withPayload(true)
     .withAttributes(true)
     .orderBy("added_at", "number", "desc")
@@ -58,8 +58,7 @@ export async function queryGrantHistory(
 
   return client
     .buildQuery()
-    .where(predicates)
-    .createdBy(ownerAddress as `0x${string}`)
+    .where([...predicates, eq("owner", ownerAddress)])
     .withPayload(true)
     .withAttributes(true)
     .orderBy("granted_at", "number", "desc")
@@ -78,9 +77,9 @@ export async function queryGrantRecordByGrantEntity(
       eq("project",      PROJECT_ATTRIBUTE),
       eq("type",         ENTITY_TYPES.AGENT_MEMORY),
       eq("subtype",      ENTITY_SUBTYPES.GRANT_RECORD),
+      eq("owner",        ownerAddress),
       eq("grant_entity", grantEntityKey),
     ])
-    .createdBy(ownerAddress as `0x${string}`)
     .withPayload(true)
     .withAttributes(true)
     .limit(1)

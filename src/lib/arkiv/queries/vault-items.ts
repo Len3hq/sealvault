@@ -18,13 +18,13 @@ export async function queryVaultItems(
   const predicates = [
     eq("project", PROJECT_ATTRIBUTE),
     eq("type", ENTITY_TYPES.VAULT_ITEM),
+    eq("owner", ownerAddress),
     ...(category ? [eq("category", category)] : []),
   ]
 
   return client
     .buildQuery()
     .where(predicates)
-    .createdBy(ownerAddress as `0x${string}`)
     .withPayload(false) // payload is encrypted — only fetch on demand
     .withAttributes(true)
     .withMetadata(true)

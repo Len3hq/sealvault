@@ -13,10 +13,9 @@ export async function queryActiveGrantsByOwner(
     .where([
       eq("project",    PROJECT_ATTRIBUTE),
       eq("type",       ENTITY_TYPES.ACCESS_GRANT),
-      eq("granted_by", ownerAddress),
+      eq("owner",      ownerAddress),
       gt("expires_at", now),
     ])
-    .createdBy(ownerAddress as `0x${string}`)
     .withAttributes(true)
     .withMetadata(true)
     .orderBy("expires_at", "number", "asc") // soonest-expiring first
@@ -34,9 +33,9 @@ export async function queryGrantsByVaultItem(
     .where([
       eq("project",    PROJECT_ATTRIBUTE),
       eq("type",       ENTITY_TYPES.ACCESS_GRANT),
+      eq("owner",      ownerAddress),
       eq("parent_key", vaultItemKey),
     ])
-    .createdBy(ownerAddress as `0x${string}`)
     .withAttributes(true)
     .withMetadata(true)
     .limit(200)

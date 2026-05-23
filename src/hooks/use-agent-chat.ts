@@ -4,25 +4,18 @@ import { useCallback, useRef, useState } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai"
 import type { ChatOnToolCallCallback } from "ai"
-import {
-  revokeAccessGrant,
-  extendAccessGrant,
-  saveContact,
-  deleteVaultItemWithGrants,
-  updateGrantRecordStatus,
-} from "@/lib/arkiv/mutations"
-import { queryVaultItemByKey, queryGrantRecordByGrantEntity } from "@/lib/arkiv/queries"
+import { relayPost, relayDelete, relayPatch } from "@/lib/relay"
+import { queryVaultItemByKey } from "@/lib/arkiv/queries"
 import { createMagicLinkGrant } from "@/lib/vault"
 import { publicClient } from "@/lib/arkiv/client"
-import { GRANT_STATUS, VAULT_CATEGORIES } from "@/lib/arkiv/constants"
+import { VAULT_CATEGORIES } from "@/lib/arkiv/constants"
 import type { VaultCategory } from "@/lib/arkiv/constants"
 import { VaultItemPayloadSchema, parseEntityPayload } from "@/lib/arkiv/payload-schemas"
-import type { WalletArkivClient } from "@/lib/arkiv/client"
 
 interface UseAgentChatOptions {
   masterKey: CryptoKey | null
   walletAddress: string | undefined
-  walletClient: WalletArkivClient | null
+  signature: string | null
 }
 
 type AnyAddOutput = (args: {
@@ -36,22 +29,17 @@ type AnyAddOutput = (args: {
 export function useAgentChat({
   masterKey,
   walletAddress,
-  walletClient,
+  signature,
 }: UseAgentChatOptions) {
-  // Stable ref so the async onToolCall handler always sees the latest addToolOutput
   const addOutputRef = useRef<AnyAddOutput | null>(null)
 
-  // Stable ref for walletAddress so the transport closure never captures a stale value
   const walletAddressRef = useRef(walletAddress)
   walletAddressRef.current = walletAddress
 
-  // Transport created once — uses ref to inject the current walletAddress per request
   const [transport] = useState(
     () =>
       new DefaultChatTransport({
         api: "/api/agent",
-        // When prepareSendMessagesRequest is defined, the SDK uses ONLY the
-        // returned body — it does NOT auto-inject messages. Include them explicitly.
         prepareSendMessagesRequest: ({ body, messages }) => ({
           body: { ...(body ?? {}), messages, ownerAddress: walletAddressRef.current },
         }),
@@ -77,12 +65,10 @@ export function useAgentChat({
           errorText: msg,
         })
 
-      if (!masterKey || !walletAddress || !walletClient) {
+      if (!masterKey || !walletAddress || !signature) {
         emitError("Vault is locked — please wait for the vault to unlock.")
         return
       }
-
-      const wc = walletClient as unknown as import("@/lib/arkiv/types").WalletClient
 
       try {
         switch (tc.toolName) {
@@ -102,10 +88,7 @@ export function useAgentChat({
 
             const vaultItemPayload = parseEntityPayload(VaultItemPayloadSchema, entity.payload)
 
-            const attrList = (entity.attributes ?? []) as Array<{
-              key: string
-              value: string | number
-            }>
+            const attrList = (entity.attributes ?? []) as Array<{ key: string; value: string | number }>
             const getAttr = (k: string) => attrList.find((a) => a.key === k)?.value
 
             const label    = String(getAttr("label") ?? "Document")
@@ -118,8 +101,8 @@ export function useAgentChat({
             const { token } = await createMagicLinkGrant({
               vaultItemPayload,
               masterKey,
-              walletClient: wc,
               ownerAddress: walletAddress,
+              signature,
               vaultItemKey,
               label,
               fileType,
@@ -129,8 +112,7 @@ export function useAgentChat({
               durationSeconds,
             })
 
-            const origin =
-              typeof window !== "undefined" ? window.location.origin : ""
+            const origin = typeof window !== "undefined" ? window.location.origin : ""
             const magicLink = `${origin}/view/${token}`
 
             emit({
@@ -149,24 +131,7 @@ export function useAgentChat({
               grantEntityKey: string
               granteeName?: string
             }
-
-            const grantRecord = await queryGrantRecordByGrantEntity(
-              publicClient,
-              grantEntityKey,
-              walletAddress
-            )
-
-            await revokeAccessGrant(wc, grantEntityKey)
-
-            if (grantRecord) {
-              await updateGrantRecordStatus(
-                wc,
-                grantRecord,
-                GRANT_STATUS.REVOKED,
-                "Manually revoked by owner"
-              )
-            }
-
+            await relayDelete("/api/relay/grant", { grantEntityKey }, walletAddress, signature)
             emit({ success: true, revokedGrantKey: grantEntityKey, granteeName })
             break
           }
@@ -176,7 +141,7 @@ export function useAgentChat({
               grantEntityKey: string
               additionalSeconds: number
             }
-            await extendAccessGrant(wc, grantEntityKey, additionalSeconds)
+            await relayPatch("/api/relay/grant", { grantEntityKey, additionalSeconds }, walletAddress, signature)
             emit({ success: true, grantEntityKey, additionalSeconds })
             break
           }
@@ -188,8 +153,8 @@ export function useAgentChat({
               tags?: string[]
               notes?: string
             }
-            const { entityKey } = await saveContact(wc, { name, email, tags, notes })
-            emit({ success: true, entityKey, name, email, tags })
+            const result = await relayPost("/api/relay/contact", { name, email, tags, notes }, walletAddress, signature) as { entityKey: string }
+            emit({ success: true, entityKey: result.entityKey, name, email, tags })
             break
           }
 
@@ -198,13 +163,8 @@ export function useAgentChat({
               vaultItemKey: string
               label?: string
             }
-            const { deletedGrants } = await deleteVaultItemWithGrants(
-              publicClient,
-              wc,
-              vaultItemKey,
-              walletAddress
-            )
-            emit({ success: true, vaultItemKey, label, deletedGrants })
+            const result = await relayDelete("/api/relay/vault-item", { vaultItemKey }, walletAddress, signature) as { deletedGrants: number }
+            emit({ success: true, vaultItemKey, label, deletedGrants: result.deletedGrants })
             break
           }
 
@@ -215,7 +175,7 @@ export function useAgentChat({
         emitError(err instanceof Error ? err.message : String(err))
       }
     },
-    [masterKey, walletAddress, walletClient]
+    [masterKey, walletAddress, signature]
   )
 
   const chat = useChat({
@@ -224,7 +184,6 @@ export function useAgentChat({
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
   })
 
-  // Wire the latest addToolOutput into the stable ref each render
   addOutputRef.current = chat.addToolOutput as unknown as AnyAddOutput
 
   return chat
