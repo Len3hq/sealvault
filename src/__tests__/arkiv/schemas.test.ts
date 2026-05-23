@@ -259,7 +259,11 @@ describe("buildContactEntity", () => {
     expect(getAttr(entity.attributes, "subtype")).toBe(ENTITY_SUBTYPES.CONTACT)
     expect(getAttr(entity.attributes, "name")).toBe("Dr. Smith")
     expect(getAttr(entity.attributes, "email")).toBe("smith@clinic.com")
-    expect(getAttr(entity.attributes, "tags")).toBe("medical,trusted")
+    // Tags stored as individual queryable attributes
+    expect(getAttr(entity.attributes, "tag_0")).toBe("medical")
+    expect(getAttr(entity.attributes, "tag_1")).toBe("trusted")
+    expect(getAttr(entity.attributes, "tag_count")).toBe(2)
+    expect(entity.attributes.find((a) => a.key === "tags")).toBeUndefined()
     expect(entity.expiresIn).toBe(TTL.AGENT_CONTACT)
     expect(ArrayBuffer.isView(entity.payload)).toBe(true)
   })
@@ -268,7 +272,8 @@ describe("buildContactEntity", () => {
     const entity = buildContactEntity({ name: "Alice" })
 
     expect(getAttr(entity.attributes, "name")).toBe("Alice")
-    expect(getAttr(entity.attributes, "tags")).toBe("")
+    expect(getAttr(entity.attributes, "tag_count")).toBe(0)
+    expect(entity.attributes.find((a) => a.key === "tags")).toBeUndefined()
     expect(entity.attributes.find((a) => a.key === "email")).toBeUndefined()
   })
 

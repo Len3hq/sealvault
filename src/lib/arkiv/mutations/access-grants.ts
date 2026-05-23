@@ -2,6 +2,7 @@ import { jsonToPayload } from "@arkiv-network/sdk"
 import type { Entity } from "@arkiv-network/sdk"
 import { buildAccessGrantEntity, buildGrantRecordEntity } from "../schemas"
 import { DEFAULT_TX_PARAMS, type GrantStatus } from "../constants"
+import { GrantRecordPayloadSchema, parseEntityPayload } from "../payload-schemas"
 import type { WalletClient, BuildAccessGrantParams, BuildGrantRecordParams } from "../types"
 
 export async function createAccessGrant(
@@ -48,7 +49,7 @@ export async function updateGrantRecordStatus(
 ): Promise<void> {
   if (!entity.payload) return
 
-  const currentPayload = JSON.parse(new TextDecoder().decode(entity.payload))
+  const currentPayload = parseEntityPayload(GrantRecordPayloadSchema, entity.payload)
   const newPayload = { ...currentPayload, ...(outcome !== undefined ? { outcome } : {}) }
 
   // Calculate remaining TTL from the expires_at attribute

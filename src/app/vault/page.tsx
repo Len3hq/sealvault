@@ -14,7 +14,7 @@ import { uploadToIPFS } from "@/lib/ipfs"
 import { getAttributeValue } from "@/lib/arkiv/schemas"
 import { VAULT_CATEGORIES } from "@/lib/arkiv/constants"
 import type { VaultCategory } from "@/lib/arkiv/constants"
-import type { VaultItemPayload } from "@/lib/arkiv/types"
+import { VaultItemPayloadSchema, parseEntityPayload } from "@/lib/arkiv/payload-schemas"
 import type { WalletClient } from "@/lib/arkiv/types"
 
 // ─── Shared utilities ──────────────────────────────────────────────────────────
@@ -221,9 +221,7 @@ function ShareDialog({
     const entity = await queryVaultItemByKey(publicClient, vaultItemKey, walletAddress)
     if (!entity?.payload) return
 
-    const vaultItemPayload = JSON.parse(
-      new TextDecoder().decode(entity.payload)
-    ) as VaultItemPayload
+    const vaultItemPayload = parseEntityPayload(VaultItemPayloadSchema, entity.payload)
 
     const a = (entity.attributes ?? []) as Array<{ key: string; value: string | number }>
     const fileType  = String(getAttributeValue(a, "file_type") ?? "application/octet-stream")

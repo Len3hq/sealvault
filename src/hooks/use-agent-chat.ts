@@ -16,7 +16,7 @@ import { createMagicLinkGrant } from "@/lib/vault"
 import { publicClient } from "@/lib/arkiv/client"
 import { GRANT_STATUS, VAULT_CATEGORIES } from "@/lib/arkiv/constants"
 import type { VaultCategory } from "@/lib/arkiv/constants"
-import type { VaultItemPayload } from "@/lib/arkiv/types"
+import { VaultItemPayloadSchema, parseEntityPayload } from "@/lib/arkiv/payload-schemas"
 import type { WalletArkivClient } from "@/lib/arkiv/client"
 
 interface UseAgentChatOptions {
@@ -100,9 +100,7 @@ export function useAgentChat({
               return
             }
 
-            const vaultItemPayload = JSON.parse(
-              new TextDecoder().decode(entity.payload)
-            ) as VaultItemPayload
+            const vaultItemPayload = parseEntityPayload(VaultItemPayloadSchema, entity.payload)
 
             const attrList = (entity.attributes ?? []) as Array<{
               key: string

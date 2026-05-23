@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { deleteVaultItemWithGrants, handleGrantExpiry } from "@/lib/arkiv/mutations/lifecycle"
-import { GRANT_STATUS } from "@/lib/arkiv/constants"
+import { GRANT_STATUS, DEFAULT_TX_PARAMS } from "@/lib/arkiv/constants"
 import type { Entity } from "@arkiv-network/sdk"
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
@@ -81,8 +81,11 @@ describe("deleteVaultItemWithGrants", () => {
 
     const result = await deleteVaultItemWithGrants(mockPublicClient, wallet, VAULT_ITEM_KEY, OWNER)
 
-    expect(wallet.deleteEntity).toHaveBeenCalledWith({ entityKey: VAULT_ITEM_KEY })
-    expect(wallet.deleteEntity).toHaveBeenCalledTimes(1)
+    expect(wallet.mutateEntities).toHaveBeenCalledWith(
+      { deletes: [{ entityKey: VAULT_ITEM_KEY }] },
+      DEFAULT_TX_PARAMS
+    )
+    expect(wallet.mutateEntities).toHaveBeenCalledTimes(1)
     expect(result.deletedGrants).toBe(0)
   })
 
@@ -93,10 +96,17 @@ describe("deleteVaultItemWithGrants", () => {
 
     const result = await deleteVaultItemWithGrants(mockPublicClient, wallet, VAULT_ITEM_KEY, OWNER)
 
-    expect(wallet.deleteEntity).toHaveBeenCalledWith({ entityKey: VAULT_ITEM_KEY })
-    expect(wallet.deleteEntity).toHaveBeenCalledWith({ entityKey: "0xGrantKey1" })
-    expect(wallet.deleteEntity).toHaveBeenCalledWith({ entityKey: "0xGrantKey2" })
-    expect(wallet.deleteEntity).toHaveBeenCalledTimes(3)
+    expect(wallet.mutateEntities).toHaveBeenCalledWith(
+      {
+        deletes: [
+          { entityKey: VAULT_ITEM_KEY },
+          { entityKey: "0xGrantKey1" },
+          { entityKey: "0xGrantKey2" },
+        ],
+      },
+      DEFAULT_TX_PARAMS
+    )
+    expect(wallet.mutateEntities).toHaveBeenCalledTimes(1)
     expect(result.deletedGrants).toBe(2)
   })
 
@@ -124,7 +134,10 @@ describe("deleteVaultItemWithGrants", () => {
     await deleteVaultItemWithGrants(mockPublicClient, wallet, VAULT_ITEM_KEY, OWNER)
 
     expect(updateGrantRecordStatus).not.toHaveBeenCalled()
-    expect(wallet.deleteEntity).toHaveBeenCalledTimes(2) // item + grant
+    expect(wallet.mutateEntities).toHaveBeenCalledWith(
+      { deletes: [{ entityKey: VAULT_ITEM_KEY }, { entityKey: "0xGrantKey1" }] },
+      DEFAULT_TX_PARAMS
+    )
   })
 })
 

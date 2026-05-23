@@ -200,18 +200,19 @@ describe("buildReadTools — lookup_contact", () => {
   it("returns contact details with parsed payload", async () => {
     const payload = JSON.stringify({ notes: "Primary care physician" })
     const encoder = new TextEncoder()
-    mockQuery(queryContacts).mockResolvedValue({
-      entities: [
-        {
-          ...makeEntity([
-            { key: "name", value: "Dr. Smith" },
-            { key: "email", value: "smith@clinic.com" },
-            { key: "tags", value: "doctor,primary" },
-          ]),
-          payload: encoder.encode(payload),
-        },
-      ],
-    } as unknown as QueryResult)
+    // queryContacts now returns Entity[] directly (not QueryResult)
+    mockQuery(queryContacts).mockResolvedValue([
+      {
+        ...makeEntity([
+          { key: "name",      value: "Dr. Smith" },
+          { key: "email",     value: "smith@clinic.com" },
+          { key: "tag_0",     value: "doctor" },
+          { key: "tag_1",     value: "primary" },
+          { key: "tag_count", value: 2 },
+        ]),
+        payload: encoder.encode(payload),
+      },
+    ] as never)
 
     const tools = buildReadTools(OWNER)
     const tool = tools.lookup_contact as unknown as {
@@ -232,6 +233,7 @@ describe("buildReadTools — query_grant_history", () => {
   it("returns history records with outcome field", async () => {
     const payload = JSON.stringify({
       summary: "Shared lab results with Dr. Smith",
+      context: "Medical record sharing",
       outcome: "expired",
     })
     const encoder = new TextEncoder()

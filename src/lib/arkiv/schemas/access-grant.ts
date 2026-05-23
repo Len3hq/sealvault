@@ -1,6 +1,6 @@
 import { jsonToPayload } from "@arkiv-network/sdk"
 import type { CreateEntityParameters } from "@arkiv-network/sdk"
-import { PROJECT_ATTRIBUTE, ENTITY_TYPES } from "../constants"
+import { PROJECT_ATTRIBUTE, ENTITY_TYPES, TTL } from "../constants"
 import type { BuildAccessGrantParams } from "../types"
 
 export function buildAccessGrantEntity(
@@ -15,6 +15,12 @@ export function buildAccessGrantEntity(
     durationSeconds,
   } = params
 
+  // Clamp to [GRANT_MIN, GRANT_MAX] — prevents zero-TTL or runaway grants
+  const clampedDuration = Math.min(
+    Math.max(durationSeconds, TTL.GRANT_MIN),
+    TTL.GRANT_MAX
+  )
+
   const now = Date.now()
 
   return {
@@ -24,12 +30,12 @@ export function buildAccessGrantEntity(
       { key: "project",     value: PROJECT_ATTRIBUTE },
       { key: "type",        value: ENTITY_TYPES.ACCESS_GRANT },
       { key: "token_hash",  value: tokenHash },
-      { key: "parent_key",  value: parentVaultItemKey }, // explicit relationship
+      { key: "parent_key",  value: parentVaultItemKey },
       { key: "granted_by",  value: grantedByAddress },
       { key: "purpose",     value: purpose },
       { key: "granted_at",  value: now },
-      { key: "expires_at",  value: now + durationSeconds * 1000 },
+      { key: "expires_at",  value: now + clampedDuration * 1000 },
     ],
-    expiresIn: durationSeconds, // TTL = the revocation mechanism
+    expiresIn: clampedDuration, // TTL = the revocation mechanism
   }
 }

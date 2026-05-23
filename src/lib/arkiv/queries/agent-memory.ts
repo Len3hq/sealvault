@@ -8,23 +8,31 @@ export async function queryContacts(
   client: PublicClientType,
   ownerAddress: string,
   search?: string
-) {
-  const predicates = [
-    eq("project", PROJECT_ATTRIBUTE),
-    eq("type",    ENTITY_TYPES.AGENT_MEMORY),
-    eq("subtype", ENTITY_SUBTYPES.CONTACT),
-    ...(search ? [eq("name", search)] : []),
-  ]
-
-  return client
+): Promise<Entity[]> {
+  // Fetch all contacts — glob/partial matching isn't in the fluent builder,
+  // so we filter client-side for case-insensitive substring search.
+  const result = await client
     .buildQuery()
-    .where(predicates)
+    .where([
+      eq("project", PROJECT_ATTRIBUTE),
+      eq("type",    ENTITY_TYPES.AGENT_MEMORY),
+      eq("subtype", ENTITY_SUBTYPES.CONTACT),
+    ])
     .createdBy(ownerAddress as `0x${string}`)
     .withPayload(true)
     .withAttributes(true)
     .orderBy("added_at", "number", "desc")
     .limit(200)
     .fetch()
+
+  if (!search) return result.entities
+
+  const q = search.toLowerCase()
+  return result.entities.filter((e) => {
+    const nameAttr = (e.attributes as Array<{ key: string; value: string | number }>)
+      .find((a) => a.key === "name")
+    return typeof nameAttr?.value === "string" && nameAttr.value.toLowerCase().includes(q)
+  })
 }
 
 export async function queryGrantHistory(

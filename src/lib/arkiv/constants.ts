@@ -1,3 +1,7 @@
+import { ExpirationTime } from "@arkiv-network/sdk/utils"
+
+export { ExpirationTime }
+
 export const PROJECT_ATTRIBUTE = "sealvault" as const
 
 export const ENTITY_TYPES = {
@@ -11,23 +15,24 @@ export const ENTITY_SUBTYPES = {
   CONTACT: "contact",
 } as const
 
-// All durations are in seconds (Arkiv expiresIn unit)
+// EXPIRY wraps the official SDK ExpirationTime helper.
+// Prefer ExpirationTime directly in new code.
 export const EXPIRY = {
-  seconds: (n: number): number => n,
-  minutes: (n: number): number => n * 60,
-  hours: (n: number): number => n * 3_600,
-  days: (n: number): number => n * 86_400,
-  years: (n: number): number => n * 365 * 86_400,
+  seconds: ExpirationTime.fromSeconds,
+  minutes: ExpirationTime.fromMinutes,
+  hours:   ExpirationTime.fromHours,
+  days:    ExpirationTime.fromDays,
+  years:   ExpirationTime.fromYears,
 } as const
 
-// Canonical TTLs per entity type (matches research doc)
+// Canonical TTLs per entity type
 export const TTL = {
-  VAULT_ITEM: EXPIRY.years(10),
-  GRANT_MIN: EXPIRY.hours(1),
-  GRANT_DEFAULT: EXPIRY.hours(48),
-  GRANT_MAX: EXPIRY.days(30),
-  AGENT_GRANT_RECORD: EXPIRY.years(2),
-  AGENT_CONTACT: EXPIRY.years(5),
+  VAULT_ITEM:         ExpirationTime.fromYears(10),
+  GRANT_MIN:          ExpirationTime.fromHours(1),
+  GRANT_DEFAULT:      ExpirationTime.fromHours(48),
+  GRANT_MAX:          ExpirationTime.fromDays(30),
+  AGENT_GRANT_RECORD: ExpirationTime.fromYears(2),
+  AGENT_CONTACT:      ExpirationTime.fromYears(5),
 } as const
 
 export const BRAGA = {

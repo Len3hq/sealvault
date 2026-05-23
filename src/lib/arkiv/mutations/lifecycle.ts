@@ -42,12 +42,11 @@ export async function deleteVaultItemWithGrants(
     })
   )
 
-  // 3. Delete all child grants + the vault item itself in parallel
+  // 3. Delete all child grants + the vault item in a single transaction
   const keysToDelete = [vaultItemKey, ...grants.map((g) => String(g.key))]
-  await Promise.all(
-    keysToDelete.map((key) =>
-      walletClient.deleteEntity({ entityKey: key as `0x${string}` }, DEFAULT_TX_PARAMS)
-    )
+  await walletClient.mutateEntities(
+    { deletes: keysToDelete.map((key) => ({ entityKey: key as `0x${string}` })) },
+    DEFAULT_TX_PARAMS
   )
 
   return { deletedGrants: grants.length }

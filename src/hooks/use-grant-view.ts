@@ -5,7 +5,7 @@ import { publicClient } from "@/lib/arkiv/client"
 import { queryGrantByTokenHash } from "@/lib/arkiv/queries"
 import { getAttributeValue } from "@/lib/arkiv/schemas"
 import { hashGrantToken, decryptGrant } from "@/lib/crypto"
-import type { AccessGrantPayload } from "@/lib/arkiv/types"
+import { AccessGrantPayloadSchema, parseEntityPayload } from "@/lib/arkiv/payload-schemas"
 
 export type GrantViewStatus =
   | "loading"
@@ -42,9 +42,7 @@ async function fetchGrantView(token: string): Promise<GrantViewData> {
   const grantedBy = getAttributeValue(attrs, "granted_by") as string | undefined
 
   // Decrypt the document content using the token as key material
-  const grantPayload = JSON.parse(
-    new TextDecoder().decode(entity.payload)
-  ) as AccessGrantPayload
+  const grantPayload = parseEntityPayload(AccessGrantPayloadSchema, entity.payload)
 
   let content: Uint8Array<ArrayBuffer>
   try {

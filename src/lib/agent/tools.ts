@@ -10,6 +10,11 @@ import {
 import { getAttributeValue } from "@/lib/arkiv/schemas"
 import { VAULT_CATEGORIES } from "@/lib/arkiv/constants"
 import type { VaultCategory } from "@/lib/arkiv/constants"
+import {
+  GrantRecordPayloadSchema,
+  ContactPayloadSchema,
+} from "@/lib/arkiv/payload-schemas"
+import type { z as zod } from "zod"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -19,13 +24,28 @@ function toAttrs(entity: { attributes?: unknown }): AttrList {
   return (entity.attributes as AttrList) ?? []
 }
 
-function parsePayload(entity: { payload?: Uint8Array | null }): Record<string, unknown> {
-  if (!entity.payload) return {}
+function safeParsePayload<T>(
+  schema: zod.ZodType<T>,
+  entity: { payload?: Uint8Array | null }
+): T | null {
+  if (!entity.payload) return null
   try {
-    return JSON.parse(new TextDecoder().decode(entity.payload))
+    const raw = JSON.parse(new TextDecoder().decode(entity.payload))
+    return schema.parse(raw)
   } catch {
-    return {}
+    return null
   }
+}
+
+// Read tag_0, tag_1, ... up to tag_count from individual tag attributes
+function readTags(attrs: AttrList): string[] {
+  const count = Number(attrs.find((a) => a.key === "tag_count")?.value ?? 0)
+  const tags: string[] = []
+  for (let i = 0; i < count; i++) {
+    const val = attrs.find((a) => a.key === `tag_${i}`)?.value
+    if (typeof val === "string") tags.push(val)
+  }
+  return tags
 }
 
 const categoryEnum = z.enum([...VAULT_CATEGORIES] as unknown as [string, ...string[]])
@@ -95,18 +115,16 @@ export function buildReadTools(ownerAddress: string) {
         })
       ),
       execute: async ({ name }) => {
-        const result = await queryContacts(publicClient, ownerAddress, name)
-        return result.entities.map((e) => {
+        const entities = await queryContacts(publicClient, ownerAddress, name)
+        return entities.map((e) => {
           const a = toAttrs(e)
-          const p = parsePayload(e)
+          const p = safeParsePayload(ContactPayloadSchema, e)
           return {
             key: String(e.key),
             name: getAttributeValue(a, "name"),
             email: getAttributeValue(a, "email"),
-            tags: (getAttributeValue(a, "tags") as string | undefined)
-              ?.split(",")
-              .filter(Boolean),
-            notes: p.notes,
+            tags: readTags(a),
+            notes: p?.notes ?? "",
             addedAt: getAttributeValue(a, "added_at"),
           }
         })
@@ -143,7 +161,7 @@ export function buildReadTools(ownerAddress: string) {
         })
         return result.entities.map((e) => {
           const a = toAttrs(e)
-          const p = parsePayload(e)
+          const p = safeParsePayload(GrantRecordPayloadSchema, e)
           return {
             key: String(e.key),
             granteeName: getAttributeValue(a, "grantee_name"),
@@ -152,8 +170,8 @@ export function buildReadTools(ownerAddress: string) {
             status: getAttributeValue(a, "status"),
             grantedAt: getAttributeValue(a, "granted_at"),
             expiresAt: getAttributeValue(a, "expires_at"),
-            summary: p.summary,
-            outcome: p.outcome,
+            summary: p?.summary ?? "",
+            outcome: p?.outcome ?? null,
           }
         })
       },
