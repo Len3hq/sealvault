@@ -3,7 +3,7 @@ import {
   buildVaultItemEntity,
   buildAccessGrantEntity,
   buildGrantRecordEntity,
-  buildContactEntity,
+  buildConversationMemoryEntity,
 } from "@/lib/arkiv/schemas"
 import {
   PROJECT_ATTRIBUTE,
@@ -246,49 +246,39 @@ describe("buildGrantRecordEntity", () => {
   })
 })
 
-// ─── Contact ──────────────────────────────────────────────────────────────────
+// ─── Conversation Memory ──────────────────────────────────────────────────────
 
-describe("buildContactEntity", () => {
-  it("builds contact with email and tags", () => {
-    const entity = buildContactEntity({
-      name: "Dr. Smith",
-      email: "smith@clinic.com",
-      tags: ["medical", "trusted"],
-      notes: "My GP",
-      ownerAddress: "0xowner",
-    })
+describe("buildConversationMemoryEntity", () => {
+  const params = {
+    summary: "Shared Medical Report with Dr. Osei for 24 hours for annual checkup.",
+    keyFacts: ["Dr. Osei is the user's cardiologist"],
+    actions: ["Shared Medical Report with Dr. Osei for 24h"],
+    ownerAddress: "0xowner",
+  }
 
-    expect(getAttr(entity.attributes, "project")).toBe(PROJECT_ATTRIBUTE)
+  const entity = buildConversationMemoryEntity(params)
+
+  it("uses agent_memory type with conversation_summary subtype", () => {
     expect(getAttr(entity.attributes, "type")).toBe(ENTITY_TYPES.AGENT_MEMORY)
-    expect(getAttr(entity.attributes, "subtype")).toBe(ENTITY_SUBTYPES.CONTACT)
-    expect(getAttr(entity.attributes, "name")).toBe("Dr. Smith")
-    expect(getAttr(entity.attributes, "email")).toBe("smith@clinic.com")
-    // Tags stored as individual queryable attributes
-    expect(getAttr(entity.attributes, "tag_0")).toBe("medical")
-    expect(getAttr(entity.attributes, "tag_1")).toBe("trusted")
-    expect(getAttr(entity.attributes, "tag_count")).toBe(2)
-    expect(entity.attributes.find((a) => a.key === "tags")).toBeUndefined()
-    expect(entity.expiresIn).toBe(TTL.AGENT_CONTACT)
-    expect(ArrayBuffer.isView(entity.payload)).toBe(true)
+    expect(getAttr(entity.attributes, "subtype")).toBe(ENTITY_SUBTYPES.CONVERSATION_SUMMARY)
   })
 
-  it("builds contact without optional fields", () => {
-    const entity = buildContactEntity({ name: "Alice", ownerAddress: "0xowner" })
-
-    expect(getAttr(entity.attributes, "name")).toBe("Alice")
-    expect(getAttr(entity.attributes, "tag_count")).toBe(0)
-    expect(entity.attributes.find((a) => a.key === "tags")).toBeUndefined()
-    expect(entity.attributes.find((a) => a.key === "email")).toBeUndefined()
+  it("stores topic as first 100 chars of summary", () => {
+    expect(getAttr(entity.attributes, "topic")).toBe(params.summary.slice(0, 100))
   })
 
-  it("stores notes in payload bytes", () => {
-    const entity = buildContactEntity({ name: "Bob", notes: "Lawyer", ownerAddress: "0xowner" })
+  it("stores action_count", () => {
+    expect(getAttr(entity.attributes, "action_count")).toBe(1)
+  })
+
+  it("uses 1-year TTL", () => {
+    expect(entity.expiresIn).toBe(TTL.AGENT_MEMORY_CONVERSATION)
+  })
+
+  it("encodes payload with summary, keyFacts, and actions", () => {
     const parsed = decodePayload(entity.payload)
-    expect(parsed.notes).toBe("Lawyer")
-  })
-
-  it("uses 5-year TTL", () => {
-    const entity = buildContactEntity({ name: "X", ownerAddress: "0xowner" })
-    expect(entity.expiresIn).toBe(TTL.AGENT_CONTACT)
+    expect(parsed.summary).toBe(params.summary)
+    expect(parsed.keyFacts).toEqual(params.keyFacts)
+    expect(parsed.actions).toEqual(params.actions)
   })
 })

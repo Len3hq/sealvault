@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/grants",       label: "SHARES" },
   { href: "/transactions", label: "TXNS" },
   { href: "/agent",        label: "AGENT" },
+  { href: "/memory",       label: "MEMORY" },
 ]
 
 export function Nav() {

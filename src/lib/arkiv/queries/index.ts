@@ -11,7 +11,7 @@ export {
 } from "./access-grants"
 
 export {
-  queryContacts,
+  queryConversationMemories,
   queryGrantHistory,
   queryGrantRecordByGrantEntity,
 } from "./agent-memory"

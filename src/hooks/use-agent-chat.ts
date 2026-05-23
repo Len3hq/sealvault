@@ -1,10 +1,10 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai"
 import type { ChatOnToolCallCallback } from "ai"
-import { relayPost, relayDelete, relayPatch } from "@/lib/relay"
+import { relayDelete, relayPatch } from "@/lib/relay"
 import { queryVaultItemByKey } from "@/lib/arkiv/queries"
 import { createMagicLinkGrant } from "@/lib/vault"
 import { publicClient } from "@/lib/arkiv/client"
@@ -31,7 +31,10 @@ export function useAgentChat({
   walletAddress,
   signature,
 }: UseAgentChatOptions) {
-  const addOutputRef = useRef<AnyAddOutput | null>(null)
+  const addOutputRef    = useRef<AnyAddOutput | null>(null)
+  const writeActionsRef = useRef<string[]>([])
+  const memorySavedRef  = useRef(false)
+  const [memorySaved, setMemorySaved] = useState(false)
 
   const walletAddressRef = useRef(walletAddress)
   walletAddressRef.current = walletAddress
@@ -115,6 +118,7 @@ export function useAgentChat({
             const origin = typeof window !== "undefined" ? window.location.origin : ""
             const magicLink = `${origin}/view/${token}`
 
+            writeActionsRef.current.push(`Shared "${label}" with ${granteeName} for ${Math.round(durationSeconds / 3600)}h`)
             emit({
               success: true,
               granteeName,
@@ -132,6 +136,7 @@ export function useAgentChat({
               granteeName?: string
             }
             await relayDelete("/api/relay/grant", { grantEntityKey }, walletAddress, signature)
+            writeActionsRef.current.push(`Revoked access${granteeName ? ` for ${granteeName}` : ""}`)
             emit({ success: true, revokedGrantKey: grantEntityKey, granteeName })
             break
           }
@@ -142,19 +147,8 @@ export function useAgentChat({
               additionalSeconds: number
             }
             await relayPatch("/api/relay/grant", { grantEntityKey, additionalSeconds }, walletAddress, signature)
+            writeActionsRef.current.push(`Extended access by ${Math.round(additionalSeconds / 3600)}h`)
             emit({ success: true, grantEntityKey, additionalSeconds })
-            break
-          }
-
-          case "save_contact": {
-            const { name, email, tags, notes } = tc.args as {
-              name: string
-              email?: string
-              tags?: string[]
-              notes?: string
-            }
-            const result = await relayPost("/api/relay/contact", { name, email, tags, notes }, walletAddress, signature) as { entityKey: string }
-            emit({ success: true, entityKey: result.entityKey, name, email, tags })
             break
           }
 
@@ -164,6 +158,7 @@ export function useAgentChat({
               label?: string
             }
             const result = await relayDelete("/api/relay/vault-item", { vaultItemKey }, walletAddress, signature) as { deletedGrants: number }
+            writeActionsRef.current.push(`Deleted document "${label ?? vaultItemKey}" (${result.deletedGrants} grants removed)`)
             emit({ success: true, vaultItemKey, label, deletedGrants: result.deletedGrants })
             break
           }
@@ -186,5 +181,37 @@ export function useAgentChat({
 
   addOutputRef.current = chat.addToolOutput as unknown as AnyAddOutput
 
-  return chat
+  // Save memory when conversation goes idle after write actions
+  useEffect(() => {
+    const isIdle = chat.status !== "streaming" && chat.status !== "submitted"
+    if (!isIdle) return
+    if (chat.messages.length < 2) return
+    if (memorySavedRef.current) return
+    if (!walletAddress || !signature) return
+
+    memorySavedRef.current = true
+
+    fetch("/api/agent/memory", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-owner-address": walletAddress,
+        "x-signature": signature,
+      },
+      body: JSON.stringify({
+        messages: chat.messages.map((m) => {
+          const text = m.parts
+            ?.filter((p): p is { type: "text"; text: string } => p.type === "text")
+            .map((p) => p.text)
+            .join(" ") ?? "(tool interaction)"
+          return { role: m.role, content: text }
+        }),
+        writeActions: writeActionsRef.current,
+      }),
+    })
+      .then(() => setMemorySaved(true))
+      .catch(() => { /* non-fatal */ })
+  }, [chat.status, chat.messages, walletAddress, signature])
+
+  return { ...chat, memorySaved }
 }

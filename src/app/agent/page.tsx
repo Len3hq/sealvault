@@ -1,11 +1,12 @@
 "use client"
 
 import { useRef, useEffect, FormEvent } from "react"
+import Link from "next/link"
 import { isToolUIPart, isTextUIPart, getToolName } from "ai"
 import { useVaultAuth } from "@/hooks/use-vault-auth"
 import { useAgentChat } from "@/hooks/use-agent-chat"
 import type { UIMessage, UIMessagePart, UIDataTypes, UITools } from "ai"
-import { Send, Bot, Check, ExternalLink } from "lucide-react"
+import { Send, Bot, Check, ExternalLink, Brain } from "lucide-react"
 
 // ─── Tool state badge ──────────────────────────────────────────────────────────
 
@@ -135,7 +136,7 @@ const SUGGESTIONS = [
 export default function AgentPage() {
   const { isAuthenticated, isVaultReady, masterKey, walletAddress, signature, login } = useVaultAuth()
 
-  const { messages, sendMessage, status, error } = useAgentChat({
+  const { messages, sendMessage, status, error, memorySaved } = useAgentChat({
     masterKey,
     walletAddress,
     signature,
@@ -211,7 +212,7 @@ export default function AgentPage() {
         <div className="w-8 h-8 border border-sv-border bg-sv-surface flex items-center justify-center">
           <Bot className="w-4 h-4 text-sv-muted" />
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="text-xs font-bold text-sv-text uppercase tracking-wide">[ SEALVAULT AGENT ]</p>
           <div className="flex items-center gap-1.5 mt-0.5">
             <span className={`w-1.5 h-1.5 ${masterKey ? "bg-emerald-500" : "bg-sv-dim"}`} />
@@ -219,6 +220,21 @@ export default function AgentPage() {
               {masterKey ? "Vault unlocked · ready" : "Connecting…"}
             </p>
           </div>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {memorySaved && (
+            <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 border border-emerald-200 bg-emerald-50 px-2 py-1 animate-fade-in">
+              <Brain className="w-3 h-3" />
+              Memory saved
+            </div>
+          )}
+          <Link
+            href="/memory"
+            className="text-[11px] text-sv-dim hover:text-sv-blue transition-colors duration-150 flex items-center gap-1"
+          >
+            <Brain className="w-3 h-3" />
+            My memory
+          </Link>
         </div>
       </div>
 

@@ -27,10 +27,12 @@ export const GrantRecordPayloadSchema = z.object({
   outcome: z.string().nullable(),
 })
 
-// ─── ContactPayload ───────────────────────────────────────────────────────────
+// ─── ConversationMemoryPayload ────────────────────────────────────────────────
 
-export const ContactPayloadSchema = z.object({
-  notes: z.string(),
+export const ConversationMemoryPayloadSchema = z.object({
+  summary:  z.string(),
+  keyFacts: z.array(z.string()),
+  actions:  z.array(z.string()),
 })
 
 // ─── Shared helper ────────────────────────────────────────────────────────────

@@ -14,4 +14,4 @@ export {
   handleGrantExpiry,
 } from "./lifecycle"
 
-export { saveContact } from "./agent-memory"
+export { saveConversationMemory } from "./agent-memory"

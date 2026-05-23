@@ -90,16 +90,17 @@ export interface BuildGrantRecordParams {
   ownerAddress: string
 }
 
-// ─── Agent Memory: Contact ────────────────────────────────────────────────────
+// ─── Agent Memory: Conversation Summary ──────────────────────────────────────
 
-export interface ContactPayload {
-  notes: string
+export interface ConversationMemoryPayload {
+  summary: string
+  keyFacts: string[]
+  actions: string[]
 }
 
-export interface BuildContactParams {
-  name: string
-  email?: string
-  tags?: string[]
-  notes?: string
+export interface BuildConversationMemoryParams {
+  summary: string
+  keyFacts: string[]
+  actions: string[]
   ownerAddress: string
 }

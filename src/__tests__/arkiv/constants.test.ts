@@ -24,9 +24,9 @@ describe("ENTITY_TYPES", () => {
 })
 
 describe("ENTITY_SUBTYPES", () => {
-  it("has grant_record and contact subtypes", () => {
+  it("has grant_record and conversation_summary subtypes", () => {
     expect(ENTITY_SUBTYPES.GRANT_RECORD).toBe("grant_record")
-    expect(ENTITY_SUBTYPES.CONTACT).toBe("contact")
+    expect(ENTITY_SUBTYPES.CONVERSATION_SUMMARY).toBe("conversation_summary")
   })
 })
 
@@ -82,8 +82,8 @@ describe("TTL values", () => {
     expect(TTL.AGENT_GRANT_RECORD).toBe(EXPIRY.years(2))
   })
 
-  it("contacts last 5 years", () => {
-    expect(TTL.AGENT_CONTACT).toBe(EXPIRY.years(5))
+  it("conversation memories last 1 year", () => {
+    expect(TTL.AGENT_MEMORY_CONVERSATION).toBe(EXPIRY.years(1))
   })
 
   it("grant record TTL outlives default grant TTL", () => {

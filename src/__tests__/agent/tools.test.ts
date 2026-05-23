@@ -9,7 +9,6 @@ type QueryResult = Awaited<ReturnType<typeof QueryFn>>
 vi.mock("@/lib/arkiv/queries", () => ({
   queryVaultItems: vi.fn(),
   queryActiveGrantsByOwner: vi.fn(),
-  queryContacts: vi.fn(),
   queryGrantHistory: vi.fn(),
 }))
 
@@ -20,7 +19,6 @@ vi.mock("@/lib/arkiv/client", () => ({
 import {
   queryVaultItems,
   queryActiveGrantsByOwner,
-  queryContacts,
   queryGrantHistory,
 } from "@/lib/arkiv/queries"
 
@@ -61,19 +59,6 @@ describe("writeToolSchemas — revoke_access", () => {
 
 describe("writeToolSchemas — extend_access", () => {
   const tool = writeToolSchemas.extend_access
-
-  it("has description and inputSchema", () => {
-    expect(tool.description).toBeTruthy()
-    expect(tool.inputSchema).toBeDefined()
-  })
-
-  it("does not have execute", () => {
-    expect((tool as unknown as { execute?: unknown }).execute).toBeUndefined()
-  })
-})
-
-describe("writeToolSchemas — save_contact", () => {
-  const tool = writeToolSchemas.save_contact
 
   it("has description and inputSchema", () => {
     expect(tool.description).toBeTruthy()
@@ -196,39 +181,6 @@ describe("buildReadTools — list_active_grants", () => {
   })
 })
 
-describe("buildReadTools — lookup_contact", () => {
-  it("returns contact details with parsed payload", async () => {
-    const payload = JSON.stringify({ notes: "Primary care physician" })
-    const encoder = new TextEncoder()
-    // queryContacts now returns Entity[] directly (not QueryResult)
-    mockQuery(queryContacts).mockResolvedValue([
-      {
-        ...makeEntity([
-          { key: "name",      value: "Dr. Smith" },
-          { key: "email",     value: "smith@clinic.com" },
-          { key: "tag_0",     value: "doctor" },
-          { key: "tag_1",     value: "primary" },
-          { key: "tag_count", value: 2 },
-        ]),
-        payload: encoder.encode(payload),
-      },
-    ] as never)
-
-    const tools = buildReadTools(OWNER)
-    const tool = tools.lookup_contact as unknown as {
-      execute: (args: { name: string }) => Promise<unknown[]>
-    }
-    const [contact] = await tool.execute({ name: "Dr. Smith" })
-
-    expect(contact).toMatchObject({
-      name: "Dr. Smith",
-      email: "smith@clinic.com",
-      tags: ["doctor", "primary"],
-      notes: "Primary care physician",
-    })
-  })
-})
-
 describe("buildReadTools — query_grant_history", () => {
   it("returns history records with outcome field", async () => {
     const payload = JSON.stringify({
@@ -269,13 +221,13 @@ describe("buildReadTools — query_grant_history", () => {
 // ─── Tool counts ───────────────────────────────────────────────────────────────
 
 describe("tool inventory", () => {
-  it("exports exactly 4 read tools", () => {
+  it("exports exactly 3 read tools", () => {
     const tools = buildReadTools(OWNER)
-    expect(Object.keys(tools)).toHaveLength(4)
+    expect(Object.keys(tools)).toHaveLength(3)
   })
 
-  it("exports exactly 5 write tool schemas", () => {
-    expect(Object.keys(writeToolSchemas)).toHaveLength(5)
+  it("exports exactly 4 write tool schemas", () => {
+    expect(Object.keys(writeToolSchemas)).toHaveLength(4)
   })
 
   it("all write tools have no execute function", () => {

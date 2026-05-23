@@ -27,8 +27,8 @@ export type {
   BuildAccessGrantParams,
   GrantRecordPayload,
   BuildGrantRecordParams,
-  ContactPayload,
-  BuildContactParams,
+  ConversationMemoryPayload,
+  BuildConversationMemoryParams,
   WalletClient,
 } from "./types"
 
@@ -37,7 +37,7 @@ export {
   buildVaultItemEntity,
   buildAccessGrantEntity,
   buildGrantRecordEntity,
-  buildContactEntity,
+  buildConversationMemoryEntity,
   getAttributeValue,
 } from "./schemas"
 
@@ -48,7 +48,7 @@ export {
   queryActiveGrantsByOwner,
   queryGrantsByVaultItem,
   queryGrantByTokenHash,
-  queryContacts,
+  queryConversationMemories,
   queryGrantHistory,
   queryGrantRecordByGrantEntity,
 } from "./queries"
@@ -65,7 +65,7 @@ export {
   batchCreateAccessGrants,
   deleteVaultItemWithGrants,
   handleGrantExpiry,
-  saveContact,
+  saveConversationMemory,
 } from "./mutations"
 
 // Events

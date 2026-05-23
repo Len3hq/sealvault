@@ -15,8 +15,8 @@ export const ENTITY_TYPES = {
 } as const
 
 export const ENTITY_SUBTYPES = {
-  GRANT_RECORD: "grant_record",
-  CONTACT: "contact",
+  GRANT_RECORD:         "grant_record",
+  CONVERSATION_SUMMARY: "conversation_summary",
 } as const
 
 // EXPIRY wraps the official SDK ExpirationTime helper.
@@ -35,8 +35,8 @@ export const TTL = {
   GRANT_MIN:          ExpirationTime.fromHours(1),
   GRANT_DEFAULT:      ExpirationTime.fromHours(48),
   GRANT_MAX:          ExpirationTime.fromDays(30),
-  AGENT_GRANT_RECORD: ExpirationTime.fromYears(2),
-  AGENT_CONTACT:      ExpirationTime.fromYears(5),
+  AGENT_GRANT_RECORD:   ExpirationTime.fromYears(2),
+  AGENT_MEMORY_CONVERSATION: ExpirationTime.fromYears(1),
 } as const
 
 export const BRAGA = {

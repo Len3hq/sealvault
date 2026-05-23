@@ -4,16 +4,12 @@ import { publicClient } from "@/lib/arkiv/client"
 import {
   queryVaultItems,
   queryActiveGrantsByOwner,
-  queryContacts,
   queryGrantHistory,
 } from "@/lib/arkiv/queries"
 import { getAttributeValue } from "@/lib/arkiv/schemas"
 import { VAULT_CATEGORIES } from "@/lib/arkiv/constants"
 import type { VaultCategory } from "@/lib/arkiv/constants"
-import {
-  GrantRecordPayloadSchema,
-  ContactPayloadSchema,
-} from "@/lib/arkiv/payload-schemas"
+import { GrantRecordPayloadSchema } from "@/lib/arkiv/payload-schemas"
 import type { z as zod } from "zod"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -35,17 +31,6 @@ function safeParsePayload<T>(
   } catch {
     return null
   }
-}
-
-// Read tag_0, tag_1, ... up to tag_count from individual tag attributes
-function readTags(attrs: AttrList): string[] {
-  const count = Number(attrs.find((a) => a.key === "tag_count")?.value ?? 0)
-  const tags: string[] = []
-  for (let i = 0; i < count; i++) {
-    const val = attrs.find((a) => a.key === `tag_${i}`)?.value
-    if (typeof val === "string") tags.push(val)
-  }
-  return tags
 }
 
 const categoryEnum = z.enum([...VAULT_CATEGORIES] as unknown as [string, ...string[]])
@@ -102,30 +87,6 @@ export function buildReadTools(ownerAddress: string) {
             purpose: getAttributeValue(a, "purpose"),
             grantedBy: getAttributeValue(a, "granted_by"),
             expiresAt: getAttributeValue(a, "expires_at"),
-          }
-        })
-      },
-    }),
-
-    lookup_contact: tool({
-      description: "Look up a saved contact by name. Returns their email, tags, and notes.",
-      inputSchema: zodSchema(
-        z.object({
-          name: z.string().describe("Name or partial name to search for"),
-        })
-      ),
-      execute: async ({ name }) => {
-        const entities = await queryContacts(publicClient, ownerAddress, name)
-        return entities.map((e) => {
-          const a = toAttrs(e)
-          const p = safeParsePayload(ContactPayloadSchema, e)
-          return {
-            key: String(e.key),
-            name: getAttributeValue(a, "name"),
-            email: getAttributeValue(a, "email"),
-            tags: readTags(a),
-            notes: p?.notes ?? "",
-            addedAt: getAttributeValue(a, "added_at"),
           }
         })
       },
@@ -224,21 +185,6 @@ export const writeToolSchemas = {
           .int()
           .min(3600)
           .describe("Seconds to add on top of the current expiry"),
-      })
-    ),
-  }),
-
-  save_contact: tool({
-    description: "Save a person's contact details for easy future access grants.",
-    inputSchema: zodSchema(
-      z.object({
-        name: z.string().describe("Contact's full name"),
-        email: z.string().email().optional().describe("Contact's email address"),
-        tags: z
-          .array(z.string())
-          .optional()
-          .describe("Tags for organizing (e.g. ['doctor', 'specialist'])"),
-        notes: z.string().optional().describe("Any notes about this contact"),
       })
     ),
   }),
