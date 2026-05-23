@@ -2,8 +2,8 @@
 
 import { use, useEffect, useMemo, useState } from "react"
 import { useGrantView } from "@/hooks/use-grant-view"
-import { DocumentViewer, DownloadButton } from "@/components/document-viewer"
-import { Clock, AlertCircle } from "lucide-react"
+import { DocumentViewer } from "@/components/document-viewer"
+import { Clock, AlertCircle, Shield } from "lucide-react"
 
 // ─── Countdown ─────────────────────────────────────────────────────────────────
 
@@ -29,6 +29,39 @@ function ExpiryCountdown({ expiresAt }: { expiresAt: number }) {
     return <span className="text-sv-blue font-medium">EXPIRES IN {hoursLeft}H {minutesLeft}M</span>
   }
   return <span className="text-amber-600 font-medium">EXPIRES IN {minutesLeft} MINUTE{minutesLeft !== 1 ? "S" : ""}</span>
+}
+
+// ─── Arkiv Attribution ─────────────────────────────────────────────────────────
+
+function ArkivBadge() {
+  return (
+    <a
+      href="https://arkiv.network"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-sv-border bg-sv-surface text-[11px] text-sv-dim hover:text-sv-blue hover:border-sv-blue transition-colors duration-150 uppercase tracking-wide"
+    >
+      <Shield className="w-3 h-3" />
+      Secured by Arkiv
+    </a>
+  )
+}
+
+function ArkivAttribution() {
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <a
+        href="https://arkiv.network"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-1.5 text-[11px] text-sv-dim hover:text-sv-blue transition-colors duration-150"
+      >
+        <Shield className="w-3 h-3" />
+        <span>Access controlled on-chain by <span className="font-medium">Arkiv Network</span></span>
+      </a>
+      <p className="text-[10px] text-sv-dim/60 uppercase tracking-widest">SealVault · Your data, your rules</p>
+    </div>
+  )
 }
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
@@ -75,7 +108,7 @@ export default function ViewPage({
               Contact the person who shared it if you need access again.
             </p>
           </div>
-          <p className="text-[11px] text-sv-dim">SealVault · Your data, your rules</p>
+          <ArkivAttribution />
         </div>
       </main>
     )
@@ -95,6 +128,7 @@ export default function ViewPage({
               This document could not be loaded. The link may be corrupted.
             </p>
           </div>
+          <ArkivAttribution />
         </div>
       </main>
     )
@@ -106,9 +140,12 @@ export default function ViewPage({
 
         {/* Header */}
         <div className="space-y-2 pb-6 border-b border-sv-border animate-slide-up">
-          <div className="flex items-center gap-2 text-[11px] text-sv-dim uppercase tracking-widest">
-            <span className="w-1.5 h-1.5 bg-emerald-500" />
-            Document shared with you
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-[11px] text-sv-dim uppercase tracking-widest">
+              <span className="w-1.5 h-1.5 bg-emerald-500" />
+              Document shared with you
+            </div>
+            <ArkivBadge />
           </div>
           <h1 className="text-2xl font-bold text-sv-text leading-tight">
             {data.label ?? "SHARED DOCUMENT"}
@@ -129,25 +166,24 @@ export default function ViewPage({
           </div>
         )}
 
-        {/* Document content */}
+        {/* Document content — view only, no download */}
         {data.content && (
           <div className="animate-slide-up stagger-2 border border-sv-border overflow-hidden bg-sv-surface">
             <div className="p-2">
-              <DocumentViewer content={data.content} fileType={data.fileType} label={data.label} />
+              <DocumentViewer
+                content={data.content}
+                fileType={data.fileType}
+                label={data.label}
+                disableDownload
+              />
             </div>
           </div>
         )}
 
-        {data.content && data.fileType && !data.fileType.startsWith("text/") && (
-          <div className="animate-slide-up stagger-3">
-            <DownloadButton content={data.content} fileType={data.fileType} label={data.label} />
-          </div>
-        )}
-
         {/* Footer */}
-        <p className="text-center text-[11px] text-sv-dim pt-4 uppercase tracking-widest">
-          SealVault · Your data, your rules
-        </p>
+        <div className="pt-4 border-t border-sv-border">
+          <ArkivAttribution />
+        </div>
 
       </div>
     </main>

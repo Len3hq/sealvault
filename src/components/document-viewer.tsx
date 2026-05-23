@@ -6,10 +6,12 @@ export function DocumentViewer({
   content,
   fileType,
   label,
+  disableDownload = false,
 }: {
   content: Uint8Array<ArrayBuffer>
   fileType?: string
   label?: string
+  disableDownload?: boolean
 }) {
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
 
@@ -54,6 +56,14 @@ export function DocumentViewer({
         title={label ?? "Document"}
         className="w-full h-[70vh] rounded-xl border border-slate-700"
       />
+    )
+  }
+
+  if (disableDownload) {
+    return (
+      <div className="text-center py-10">
+        <p className="text-sv-muted text-xs">This file type cannot be previewed in the browser.</p>
+      </div>
     )
   }
 

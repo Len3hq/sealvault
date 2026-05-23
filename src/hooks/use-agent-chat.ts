@@ -54,7 +54,7 @@ export function useAgentChat({
       const tc = toolCall as unknown as {
         toolName: string
         toolCallId: string
-        args: Record<string, unknown>
+        input: Record<string, unknown>
       }
 
       const emit = (output: unknown) =>
@@ -76,7 +76,7 @@ export function useAgentChat({
       try {
         switch (tc.toolName) {
           case "grant_access": {
-            const { vaultItemKey, granteeName, purpose, durationSeconds } = tc.args as {
+            const { vaultItemKey, granteeName, purpose, durationSeconds } = tc.input as {
               vaultItemKey: string
               granteeName: string
               purpose: string
@@ -131,7 +131,7 @@ export function useAgentChat({
           }
 
           case "revoke_access": {
-            const { grantEntityKey, granteeName } = tc.args as {
+            const { grantEntityKey, granteeName } = tc.input as {
               grantEntityKey: string
               granteeName?: string
             }
@@ -142,7 +142,7 @@ export function useAgentChat({
           }
 
           case "extend_access": {
-            const { grantEntityKey, additionalSeconds } = tc.args as {
+            const { grantEntityKey, additionalSeconds } = tc.input as {
               grantEntityKey: string
               additionalSeconds: number
             }
@@ -153,7 +153,7 @@ export function useAgentChat({
           }
 
           case "delete_vault_item": {
-            const { vaultItemKey, label } = tc.args as {
+            const { vaultItemKey, label } = tc.input as {
               vaultItemKey: string
               label?: string
             }
