@@ -26,7 +26,7 @@ The hackathon weights: **Arkiv Integration 40% · Functionality 30% · Design & 
 | Ownership model | 5 | User wallet-bound, edit/delete controls in UI |
 | Entity relationships | 5 | Explicit `parent_key` links + lifecycle deletion |
 | Expiration dates | 5 | Differentiated: 10yr vault, variable grants, 2yr memory |
-| Advanced features | 5 | Live events + entity extension + batch grants + $creator |
+| Advanced features | 5 | Live events + entity extension + batch grants + owner attribute |
 | Core flows | 5 | Upload → Encrypt → Grant → View → Expire — all tested |
 | Filtering & search | 5 | Category, date range, label search, active/expired toggle |
 | Wallet integration | 5 | Privy: social login, zero crypto UX for owner |
@@ -55,7 +55,7 @@ User sees 0x addresses         Privy creates wallet silently
 Popup on every action          Vault opens. Done.
 ```
 
-All wallet signing operations (key derivation, grant creation, entity writes) happen invisibly through Privy's embedded wallet SDK. The user sees none of it.
+The wallet signs a single `personal_sign` message at login to derive the master key. That same signature is reused as an auth token for all subsequent relay API calls — no further signing prompts ever appear.
 
 ### Grantee Access — Magic Link (No Wallet at All)
 
@@ -184,32 +184,24 @@ async function createMagicLinkGrant(
   // Upload re-encrypted ciphertext to IPFS (Pinata) — only the CID goes on-chain
   const grantCID = await uploadToIPFS(grantCiphertext)
 
-  // Store only the CID + metadata on Arkiv (tiny on-chain footprint)
-  const { entityKey } = await walletClient.createEntity({
-    payload: jsonToPayload({
-      grantCID,   // IPFS CID — token in URL decrypts it; token never stored here
-      grantIv,
-      label,
-      fileType,
-    }),
-    contentType: "application/json",
-    attributes: [
-      { key: "project",    value: PROJECT_ATTRIBUTE },
-      { key: "type",       value: "access_grant" },
-      { key: "token_hash", value: keccak256(token) }, // hash only, not the token
-      { key: "parent_key", value: vaultItemKey },     // explicit relationship
-      { key: "granted_by", value: ownerAddress },
-      { key: "purpose",    value: purpose },
-      { key: "granted_at", value: Date.now() },
-      { key: "expires_at", value: Date.now() + durationSeconds * 1000 },
-    ],
-    expiresIn: durationSeconds, // clamped to [1h, 30d] at schema layer
-  })
+  // Client sends CID + metadata to relay; server creates both Arkiv entities
+  const { grantEntityKey, grantRecordKey } = await relayPost(
+    "/api/relay/grant",
+    {
+      accessGrantPayload: { grantCID, grantIv, label, fileType },
+      tokenHash:          keccak256(token), // hash only — token stays in URL, never stored
+      parentVaultItemKey: vaultItemKey,
+      purpose,
+      durationSeconds,
+      granteeName,
+      category,
+    },
+    ownerAddress,
+    signature,  // personal_sign from login — reused as API auth token
+  ) as { grantEntityKey: string; grantRecordKey: string }
 
-  return {
-    magicLink: `${APP_URL}/view/${token}`,
-    grantEntityKey: entityKey,
-  }
+  return { token, tokenHash: keccak256(token), grantEntityKey, grantRecordKey }
+  // Caller constructs: `${origin}/view/${token}` as the magic link
 }
 ```
 
@@ -219,7 +211,7 @@ When the grantee visits `/view/[token]`, the app derives the same grant key from
 
 ## Arkiv Entity Schema (4 Types)
 
-Every entity carries `PROJECT_ATTRIBUTE = "sealvault"` and is queried with `.createdBy(ownerAddress)` to prevent injection attacks.
+Every entity carries `PROJECT_ATTRIBUTE = "sealvault"` and an `owner` attribute set to the user's wallet address. All entity writes go through the server-side relayer wallet (so `$creator` is the relayer, not the user). Queries scope data to the correct user via `eq("owner", ownerAddress)` instead of `.createdBy()`.
 
 ### Type 1 — Vault Item (10-year TTL)
 
@@ -237,6 +229,7 @@ Every entity carries `PROJECT_ATTRIBUTE = "sealvault"` and is queried with `.cre
   attributes: [
     { key: "project",    value: "sealvault" },
     { key: "type",       value: "vault_item" },
+    { key: "owner",      value: "0xOwner..." },      // relayer is $creator; this scopes the data
     { key: "category",   value: "medical" },         // plaintext for filtering
     { key: "label",      value: "Blood Work 2026" }, // plaintext for display
     { key: "file_type",  value: "application/pdf" },
@@ -264,7 +257,8 @@ Every entity carries `PROJECT_ATTRIBUTE = "sealvault"` and is queried with `.cre
   attributes: [
     { key: "project",    value: "sealvault" },
     { key: "type",       value: "access_grant" },
-    { key: "token_hash", value: "keccak256(token)..." }, // hash only — token stays in URL
+    { key: "owner",      value: "0xOwner..." },           // scopes to this user
+    { key: "token_hash", value: "keccak256(token)..." },  // hash only — token stays in URL
     { key: "parent_key", value: "vault_item_entity_key" }, // explicit relationship ←
     { key: "granted_by", value: "0xOwner..." },
     { key: "purpose",    value: "annual checkup" },
@@ -289,11 +283,12 @@ Every entity carries `PROJECT_ATTRIBUTE = "sealvault"` and is queried with `.cre
     { key: "project",      value: "sealvault" },
     { key: "type",         value: "agent_memory" },
     { key: "subtype",      value: "grant_record" },
-    { key: "grantee_name", value: "Dr. Smith" },       // human name, never address
-    { key: "parent_key",   value: "vault_item_key" },  // links to vault item
-    { key: "grant_entity", value: "grant_entity_key" }, // links to grant
-    { key: "status",       value: "active" },           // active | expired | revoked
-    { key: "category",     value: "medical" },          // for history filtering
+    { key: "owner",        value: "0xOwner..." },         // scopes to this user
+    { key: "grantee_name", value: "Dr. Smith" },          // human name, never address
+    { key: "parent_key",   value: "vault_item_key" },     // links to vault item
+    { key: "grant_entity", value: "grant_entity_key" },   // links to grant
+    { key: "status",       value: "active" },              // active | expired | revoked
+    { key: "category",     value: "medical" },             // for history filtering
     { key: "granted_at",   value: Date.now() },
     { key: "expires_at",   value: Date.now() + 172800000 },
   ],
@@ -313,6 +308,7 @@ Tags are stored as individual numbered attributes (not comma-joined) so each tag
     { key: "project",   value: "sealvault" },
     { key: "type",      value: "agent_memory" },
     { key: "subtype",   value: "contact" },
+    { key: "owner",     value: "0xOwner..." }, // scopes to this user
     { key: "name",      value: "Dr. Smith" },
     { key: "email",     value: "smith@clinic.com" }, // optional, for display
     { key: "tag_0",     value: "medical" },   // individual attribute per tag
@@ -331,31 +327,28 @@ Tags are stored as individual numbered attributes (not comma-joined) so each tag
 When a vault item is deleted, all its child grant entities must be deleted immediately. Otherwise grants point at a missing item — orphaned data costs points on the rubric.
 
 ```typescript
-async function deleteVaultItemWithGrants(itemEntityKey: string) {
-  // Find all grants that reference this vault item
+// Client: POST /api/relay/vault-item { vaultItemKey } + auth headers
+// Server (relay route):
+async function deleteVaultItemWithGrants(itemEntityKey: string, ownerAddress: string) {
+  // Find all grants that reference this vault item — scoped by owner attribute
   const grantsResult = await publicClient
     .buildQuery()
     .where([
       eq("project",    PROJECT_ATTRIBUTE),
       eq("type",       "access_grant"),
+      eq("owner",      ownerAddress),   // ← owner attribute, not $creator
       eq("parent_key", itemEntityKey),
     ])
-    .createdBy(ownerAddress)
     .withAttributes(true)
     .fetch()
 
-  // Update all memory records to status: "revoked" (audit trail preserved)
-  await Promise.all(grantsResult.entities.map(async (grant) => {
-    const memory = await findMemoryForGrant(String(grant.key))
-    if (memory) await updateGrantRecordStatus(walletClient, memory, "revoked", "Parent document deleted")
-  }))
-
   // Delete grants + the vault item in ONE transaction (not N+1 individual calls)
   const keysToDelete = [itemEntityKey, ...grantsResult.entities.map(e => String(e.key))]
-  await walletClient.mutateEntities(
+  await relayerClient.mutateEntities(
     { deletes: keysToDelete.map(key => ({ entityKey: key as `0x${string}` })) },
     DEFAULT_TX_PARAMS
   )
+  // Returns deletedGrants count to the client for UI feedback
 }
 ```
 
@@ -366,44 +359,40 @@ async function deleteVaultItemWithGrants(itemEntityKey: string) {
 ### 1. Entity Extension (Extend a grant from the agent)
 
 ```typescript
-// Agent hears: "Give Dr. Smith one more day"
-await walletClient.extendEntity({
+// Client (use-grant-actions.ts): PATCH /api/relay/grant { grantEntityKey, additionalSeconds }
+// Server (relay route):
+await relayerClient.extendEntity({
   entityKey: grantEntityKey,
-  expiresIn: hours(24), // adds 24h to current expiry
-})
-
-// Also update the memory record's expires_at attribute
-await walletClient.updateEntity({
-  entityKey: memoryEntityKey,
-  payload: currentMemoryPayload,
-  attributes: [
-    ...currentAttributes.filter(a => a.key !== "expires_at"),
-    { key: "expires_at", value: newExpiresAt },
-  ]
+  expiresIn: additionalSeconds,
 })
 ```
 
 ### 2. Batch Grants (Share with multiple people at once)
 
 ```typescript
-// Agent hears: "Share my tax return with both my accountant and my lawyer"
-const { createdEntities } = await walletClient.mutateEntities({
+// Server (relay route): all entity creates go through the relayer wallet
+const { createdEntities } = await relayerClient.mutateEntities({
   creates: [
-    buildGrantEntity(itemKey, accountantToken, ExpirationTime.fromHours(72), "Tax filing"),
-    buildGrantEntity(itemKey, lawyerToken,     ExpirationTime.fromHours(72), "Legal review"),
+    buildGrantEntity(itemKey, accountantToken, 72 * 3600, "Tax filing"),
+    buildGrantEntity(itemKey, lawyerToken,     72 * 3600, "Legal review"),
   ],
 }, DEFAULT_TX_PARAMS)
-// Two grants created in one transaction — createdEntities[0] and [1] are the entity keys
+// Two grants in one transaction — createdEntities[0] and [1] are the entity keys
 ```
 
-### 3. $creator Verification on All Queries
+### 3. Owner Attribute Scoping on All Queries
+
+Because the relayer wallet is `$creator` for all entities, queries scope to the correct user via an explicit `owner` attribute instead of `.createdBy()`.
 
 ```typescript
-// Always filter by creator to prevent injection attacks
+// Always filter by owner to prevent data leakage between users
 const myVaultItems = await publicClient
   .buildQuery()
-  .where([eq("project", PROJECT_ATTRIBUTE), eq("type", "vault_item")])
-  .createdBy(ownerAddress)   // ← tamper-proof: ignores entities from other wallets
+  .where([
+    eq("project", PROJECT_ATTRIBUTE),
+    eq("type",    "vault_item"),
+    eq("owner",   ownerAddress),   // ← set at entity creation; filters to this user's data
+  ])
   .withAttributes(true)
   .orderBy("created_at", "number", "desc")
   .fetch()
@@ -412,33 +401,27 @@ const myVaultItems = await publicClient
 ### 4. Live Expiry Events (Real-time revocation notifications)
 
 ```typescript
+// Client (use-grant-expiry.ts): subscribes to entity events, fires relay PUT on expiry
 const unsubscribe = publicClient.subscribeEntityEvents(
   {
     onEntityExpired: async (event) => {
-      const memory = await findMemoryForGrant(event.entityKey)
-      if (!memory) return
-
-      // Update audit record
-      await walletClient.updateEntity({
-        entityKey: memory.arkivEntityKey,
-        payload: JSON.stringify({ ...memory.payload, outcome: "Expired automatically" }),
-        attributes: memory.attributes.map(a =>
-          a.key === "status" ? { key: "status", value: "expired" } : a
-        ),
+      // Client calls relay to update the audit record — relayer wallet does the write
+      await fetch("/api/relay/grant", {
+        method: "PUT",
+        headers: {
+          "Content-Type":   "application/json",
+          "x-owner-address": walletAddress,
+          "x-signature":     signature,
+        },
+        body: JSON.stringify({ grantEntityKey: event.entityKey, outcome: "Expired automatically" }),
       })
-
       // Show toast to user
-      showNotification(`Access for "${memory.granteeName}" has expired`)
-    },
-    onEntityDeleted: async (event) => {
-      // Handles immediate revocations too
-      const memory = await findMemoryForGrant(event.entityKey)
-      if (memory) await updateMemoryStatus(memory.arkivEntityKey, "revoked")
+      showNotification(`An active share has expired`)
     },
   },
-  30_000 // pollingInterval in ms — second positional argument
+  30_000 // pollingInterval in ms
 )
-// Returns Promise<() => void> — call the returned function on unmount to stop polling
+// Returns Promise<() => void> — call on unmount to stop polling
 ```
 
 ---
@@ -680,14 +663,16 @@ After expiry:
 
 | Situation | What the user sees |
 |---|---|
-| Ran out of test tokens | "Your vault needs a small top-up to save changes. [Get free tokens →]" — links to Arkiv faucet |
 | Network down | "Connection lost. Your documents are safe — reconnecting..." with spinner |
 | Magic link expired | "This link has expired. The owner's access period ended on [date]." |
 | Magic link not found | "This link is invalid or has already been removed." |
 | File too large | "Maximum file size is 10MB. Try compressing it first." |
 | Unsupported file type | "Supported: PDF, images, text files, and documents." |
 | Grant creation fails | "Something went wrong creating the share. Try again." with retry button |
+| Vault is locked | "Vault is locked — please wait for the vault to unlock." (relay auth guard) |
 | Vault item deleted mid-share | All child grants deleted atomically — grantee sees expired state |
+
+Note: users are never shown a "out of gas" or "insufficient funds" error — the relayer wallet pays all transaction fees.
 
 ---
 
@@ -704,7 +689,8 @@ OWNER (any person, no crypto knowledge)
 │                                                                  │
 │  Privy Auth Layer                                                │
 │  └── embedded wallet (invisible to user)                        │
-│       └── signs once → master key derived → stored in memory   │
+│       └── personal_sign once → master key derived              │
+│           signature cached in memory → reused as API auth token │
 │                                                                  │
 │  Encryption Layer (Web Crypto API, AES-256-GCM + HKDF)         │
 │  └── encryptVaultItem / decryptVaultItem (per-item key wrap)    │
@@ -713,34 +699,52 @@ OWNER (any person, no crypto knowledge)
 │  Vault UI                                                        │
 │  └── upload, view, search, filter, manage shares                │
 │                                                                  │
-│  Agent Layer (gpt-4o-mini via OpenAI / AI SDK v6)               │
-│  └── natural language → tools → Arkiv SDK + crypto calls        │
-│  └── reads/writes agent_memory entities                          │
-│  └── subscribes to expiry events → live notifications            │
-└──────────┬────────────────────────────────────┬─────────────────┘
-           │ encrypted bytes (Uint8Array)        │ CID + key material
-           ▼                                     ▼
-┌──────────────────────┐          ┌──────────────────────────────────────┐
-│  IPFS / Pinata       │          │  Arkiv DB-Chain (Braga)              │
-│                      │          │                                      │
-│  Encrypted ciphertext│          │  vault_item   (TTL: 10yr)           │
-│  for vault items     │          │    payload: { cid, iv, wrappedKey }  │
-│                      │          │                                      │
-│  Re-encrypted bytes  │          │  access_grant (TTL: 1h–30d) ← REVOKE│
-│  for each grant      │          │    payload: { grantCID, grantIv }   │
-│                      │          │                                      │
-│  Content-addressed:  │          │  agent_memory/grant (TTL: 2yr)      │
-│  CID is immutable    │          │  agent_memory/contact (TTL: 5yr)    │
-│  proof of content    │          │                                      │
-└──────────────────────┘          │  All queries: PROJECT_ATTRIBUTE      │
-  Neither layer alone             │  + .createdBy(ownerAddress)          │
-  reveals the document:           │                                      │
-  IPFS has locked box,            │  Arkiv Coordination Layer (L2)       │
-  Arkiv has the key.              │  Ethereum Mainnet (L1) — proofs      │
-                                  └──────────────────────────────────────┘
-                                                 │
-                                                 │  magic link → no wallet needed
-                                                 ▼
+│  Agent Layer (Claude via Vercel AI SDK v5)                      │
+│  └── natural language → tools → relay API calls                 │
+│  └── reads agent_memory entities via public Arkiv client        │
+│  └── subscribes to expiry events → relay PUT on expiry          │
+└──────────┬────────────────────────────────────────┬─────────────┘
+           │ encrypted bytes (Uint8Array)            │ relay POST/DELETE/PATCH
+           ▼                                         ▼
+┌──────────────────────┐   ┌──────────────────────────────────────────┐
+│  IPFS / Pinata       │   │  SealVault Relay Server (Next.js API)    │
+│                      │   │                                          │
+│  Encrypted ciphertext│   │  verifyOwner() — recoverMessageAddress   │
+│  for vault items     │   │  checks x-owner-address + x-signature    │
+│                      │   │                                          │
+│  Re-encrypted bytes  │   │  getRelayerClient() — Arkiv SDK wallet   │
+│  for each grant      │   │  funded with RELAYER_PRIVATE_KEY         │
+│                      │   │  pays all gas; users need zero GLM       │
+│  Content-addressed:  │   │                                          │
+│  CID is immutable    │   │  /api/relay/vault-item  (POST, DELETE)   │
+│  proof of content    │   │  /api/relay/grant       (POST, DELETE,   │
+└──────────────────────┘   │                          PATCH, PUT)     │
+  Neither layer alone      │  /api/relay/contact     (POST)           │
+  reveals the document:    └────────────────────────┬─────────────────┘
+  IPFS has locked box,                              │ Arkiv SDK (golembase tx format)
+  Arkiv has the key.                                ▼
+                            ┌──────────────────────────────────────────┐
+                            │  Arkiv DB-Chain (Braga / GolemBase L3)   │
+                            │                                          │
+                            │  vault_item   (TTL: 10yr)               │
+                            │    attributes: { owner, type, category } │
+                            │    payload: { cid, iv, wrappedKey }      │
+                            │                                          │
+                            │  access_grant (TTL: 1h–30d) ← REVOKE   │
+                            │    attributes: { owner, token_hash }     │
+                            │    payload: { grantCID, grantIv }       │
+                            │                                          │
+                            │  agent_memory/grant   (TTL: 2yr)        │
+                            │  agent_memory/contact (TTL: 5yr)        │
+                            │                                          │
+                            │  All queries: eq("project", "sealvault")│
+                            │            + eq("owner", ownerAddress)   │
+                            │                                          │
+                            │  Arkiv Coordination Layer (L2)          │
+                            │  Ethereum Mainnet (L1) — proofs         │
+                            └──────────────────────┬───────────────────┘
+                                                   │  magic link → no wallet needed
+                                                   ▼
 GRANTEE (any person, any browser, zero crypto knowledge)
   Clicks link → token in URL → query Arkiv by token_hash → fetch IPFS by grantCID
   → decrypt with token-derived key → document opens. No account.
@@ -753,14 +757,16 @@ GRANTEE (any person, any browser, zero crypto knowledge)
 
 | Layer | Choice | Why |
 |---|---|---|
-| Framework | Next.js 15 (App Router) | Vercel deploy, streaming agent responses via RSC |
+| Framework | Next.js 15 (App Router) | Vercel deploy, streaming agent responses, API relay routes |
 | Auth & Wallet | **Privy** | Social login → embedded wallet, zero MetaMask dependency |
 | Arkiv | `@arkiv-network/sdk` | Required — entities, queries, events |
+| **Gas relayer** | **`RELAYER_PRIVATE_KEY` + Arkiv SDK server client** | Pre-funded server wallet pays all gas; users need zero GLM. Arkiv SDK's `createWalletClient` formats golembase transactions (plain viem is rejected by Braga) |
 | Off-chain storage | **IPFS + Pinata** | Encrypted bytes stored on IPFS; only CID (~59 chars) goes on-chain — keeps GLM cost minimal |
+| Relay auth | `personal_sign` + `recoverMessageAddress` | Login signature reused as API token — no extra prompts |
 | Encryption | Web Crypto API (native) | No deps, runs in browser, AES-256-GCM + HKDF |
 | Payload validation | Zod | Schema validation on all entity payload parses |
-| Agent | `gpt-4o-mini` via OpenAI SDK | Streaming tool use (4 read + 5 write tools) |
-| AI SDK | Vercel AI SDK v6 | Streaming chat UI, client-side tool execution |
+| Agent | Claude via Anthropic SDK | Streaming tool use (4 read + 5 write tools) |
+| AI SDK | Vercel AI SDK v5 | Streaming chat UI, client-side tool execution |
 | Data fetching | TanStack Query | React Query for Arkiv reads with stale-time caching |
 | UI | shadcn/ui + Tailwind | Customised heavily — not default theme |
 | Deployment | Vercel | Zero config, matches Next.js App Router |
@@ -773,8 +779,8 @@ Given Arkiv Integration is 40% of the score, get entities right first.
 
 ### Phase 1 — Arkiv Entity Foundation ✅
 - [x] Define `PROJECT_ATTRIBUTE = "sealvault"`
-- [x] Implement all 4 entity schemas with correct attributes
-- [x] Implement `.createdBy()` on every query
+- [x] Implement all 4 entity schemas with correct attributes (including `owner`)
+- [x] Scope all queries with `eq("owner", ownerAddress)` instead of `.createdBy()`
 - [x] Test entity lifecycle deletion (delete item → delete grants)
 - [x] Wire up `subscribeEntityEvents` for expiry/deletion
 
@@ -808,7 +814,16 @@ Given Arkiv Integration is 40% of the score, get entities right first.
 - [x] All error states with helpful messages
 - [x] Remove all crypto language from UI
 
-### Phase 6 — Submission
+### Phase 6 — Gas Relayer ✅
+- [x] Diagnose "non-golembase transaction" error: Braga (GolemBase L3) rejects plain viem transactions; only Arkiv SDK's `createWalletClient` produces valid golembase transactions
+- [x] Remove fund-wallet route (native token transfers also rejected on Braga)
+- [x] Build server-side relay: `/api/relay/{vault-item,grant,contact}` — all Arkiv writes go through a pre-funded `RELAYER_PRIVATE_KEY` wallet using Arkiv SDK
+- [x] Add `owner` attribute to all entity schemas; switch all queries from `.createdBy()` to `eq("owner", ownerAddress)`
+- [x] Implement relay auth: `personal_sign` signature from login reused as API token (x-owner-address + x-signature headers, verified via `recoverMessageAddress`)
+- [x] Fix `DEFAULT_TX_PARAMS` gasPrice: `0n` → `1_000n` (Braga EIP-1559 baseFee = 251 wei)
+- [x] Update all hooks and components to use relay instead of direct wallet client calls
+
+### Phase 7 — Submission
 - [ ] README: what it is, setup steps, architecture overview, how Arkiv is used
 - [ ] Public GitHub repo
 - [ ] Deploy to Vercel → working demo link
@@ -836,10 +851,10 @@ Given Arkiv Integration is 40% of the score, get entities right first.
 
 ## Why This Wins
 
-- **Blockchain abstraction: complete** — owner uses Google login, grantee uses a link. Nobody touches crypto.
+- **Blockchain abstraction: complete** — owner uses Google login, grantee uses a link. Nobody touches crypto. Nobody ever sees a gas error.
 - **TTL-as-revocation is genuinely novel** — no one builds access control this way
-- **Zero backend** — runs entirely in-browser + Arkiv + Claude API. Nothing to hack, nothing to maintain.
+- **Zero gas UX** — relay server (pre-funded `RELAYER_PRIVATE_KEY`) pays all transaction fees invisibly. Users can upload and grant on a brand-new account from the first second.
 - **Real cryptography** — AES-256-GCM with per-item keys and key wrapping. Not fake "privacy."
 - **Agent earns its place** — the only persistent memory across sessions. Contacts, history, context. Without it the app resets every visit.
-- **All 4 advanced Arkiv features** — live events, entity extension, batch grants, $creator filtering
+- **All 4 advanced Arkiv features** — live events, entity extension, batch grants, owner-attribute scoping
 - **Strong human narrative** — "Your medical records, shared on your terms, revoked automatically." Judges remember this.
