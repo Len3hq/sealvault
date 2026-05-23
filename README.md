@@ -4,7 +4,7 @@
 
 SealVault is a crypto-native document vault built on Arkiv — where your files are encrypted before they leave your browser, stored on IPFS, and shared via time-scoped magic links that expire on-chain. No counterparty risk. No centralised server that can leak your data.
 
-🌐 **Live:** [sealvault.vercel.app](https://sealvault.vercel.app)
+🌐 **Live:** [sealvault.len3.xyz](https://sealvault.len3.xyz/)
 📦 **Repo:** [github.com/Len3hq/sealvault](https://github.com/Len3hq/sealvault)
 
 ## Why SealVault?
