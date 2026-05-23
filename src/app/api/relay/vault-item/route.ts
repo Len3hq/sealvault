@@ -1,35 +1,45 @@
 import { NextRequest, NextResponse } from "next/server"
+import { z } from "zod"
 import { verifyOwner } from "@/lib/server/verify-auth"
 import { getRelayerClient } from "@/lib/arkiv/server-client"
 import { publicClient } from "@/lib/arkiv/client"
-import { createVaultItem } from "@/lib/arkiv/mutations"
-import { deleteVaultItemWithGrants } from "@/lib/arkiv/mutations"
-import type { VaultItemPayload } from "@/lib/arkiv/types"
-import type { VaultCategory } from "@/lib/arkiv/constants"
+import { createVaultItem, deleteVaultItemWithGrants } from "@/lib/arkiv/mutations"
+import { VAULT_CATEGORIES } from "@/lib/arkiv/constants"
 import type { WalletClient } from "@/lib/arkiv/types"
 
 export const runtime = "nodejs"
+
+const PostBodySchema = z.object({
+  cid:            z.string().min(1),
+  iv:             z.string().min(1),
+  wrappedItemKey: z.string().min(1),
+  wrapIv:         z.string().min(1),
+  version:        z.number().int().positive(),
+  label:          z.string().min(1),
+  category:       z.enum(VAULT_CATEGORIES),
+  fileType:       z.string().min(1),
+  sizeBytes:      z.number().int().nonnegative(),
+})
+
+const DeleteBodySchema = z.object({
+  vaultItemKey: z.string().min(1),
+})
 
 export async function POST(req: NextRequest) {
   const ownerAddress = await verifyOwner(req)
   if (!ownerAddress) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const body = await req.json() as {
-    cid: string; iv: string; wrappedItemKey: string; wrapIv: string; version: number
-    label: string; category: VaultCategory; fileType: string; sizeBytes: number
-  }
-
-  const encryptedPayload: VaultItemPayload = {
-    cid: body.cid,
-    iv: body.iv,
-    wrappedItemKey: body.wrappedItemKey,
-    wrapIv: body.wrapIv,
-    version: body.version,
-  }
+  const parsed = PostBodySchema.safeParse(await req.json())
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+  const body = parsed.data
 
   const walletClient = getRelayerClient() as unknown as WalletClient
   const { entityKey } = await createVaultItem(walletClient, {
-    encryptedPayload,
+    encryptedPayload: {
+      cid: body.cid, iv: body.iv,
+      wrappedItemKey: body.wrappedItemKey, wrapIv: body.wrapIv,
+      version: body.version,
+    },
     label: body.label,
     category: body.category,
     fileType: body.fileType,
@@ -44,14 +54,14 @@ export async function DELETE(req: NextRequest) {
   const ownerAddress = await verifyOwner(req)
   if (!ownerAddress) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { vaultItemKey } = await req.json() as { vaultItemKey: string }
-  if (!vaultItemKey) return NextResponse.json({ error: "vaultItemKey required" }, { status: 400 })
+  const parsed = DeleteBodySchema.safeParse(await req.json())
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
   const walletClient = getRelayerClient() as unknown as WalletClient
   const { deletedGrants } = await deleteVaultItemWithGrants(
     publicClient,
     walletClient,
-    vaultItemKey,
+    parsed.data.vaultItemKey,
     ownerAddress
   )
 

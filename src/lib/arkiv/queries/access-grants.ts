@@ -1,5 +1,5 @@
 import { eq, gt } from "@arkiv-network/sdk/query"
-import { PROJECT_ATTRIBUTE, ENTITY_TYPES } from "../constants"
+import { PROJECT_ATTRIBUTE, ENTITY_TYPES, RELAYER_ADDRESS } from "../constants"
 import type { PublicClientType } from "../client"
 
 export async function queryActiveGrantsByOwner(
@@ -16,6 +16,7 @@ export async function queryActiveGrantsByOwner(
       eq("owner",      ownerAddress),
       gt("expires_at", now),
     ])
+    .createdBy(RELAYER_ADDRESS)
     .withAttributes(true)
     .withMetadata(true)
     .orderBy("expires_at", "number", "asc") // soonest-expiring first
@@ -36,6 +37,7 @@ export async function queryGrantsByVaultItem(
       eq("owner",      ownerAddress),
       eq("parent_key", vaultItemKey),
     ])
+    .createdBy(RELAYER_ADDRESS)
     .withAttributes(true)
     .withMetadata(true)
     .limit(200)
@@ -53,6 +55,7 @@ export async function queryGrantByTokenHash(
       eq("type",       ENTITY_TYPES.ACCESS_GRANT),
       eq("token_hash", tokenHash),
     ])
+    .createdBy(RELAYER_ADDRESS)
     .withPayload(true) // need ciphertext to decrypt for grantee
     .withAttributes(true)
     .limit(1)

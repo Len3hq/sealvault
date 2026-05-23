@@ -4,6 +4,10 @@ export { ExpirationTime }
 
 export const PROJECT_ATTRIBUTE = "sealvault" as const
 
+// Public address of the relayer wallet — all entities are created by this wallet.
+// Adding .createdBy(RELAYER_ADDRESS) to queries rejects injected entities from other wallets.
+export const RELAYER_ADDRESS = process.env.NEXT_PUBLIC_RELAYER_ADDRESS as `0x${string}`
+
 export const ENTITY_TYPES = {
   VAULT_ITEM: "vault_item",
   ACCESS_GRANT: "access_grant",

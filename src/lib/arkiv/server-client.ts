@@ -1,6 +1,6 @@
 import { createWalletClient, http } from "@arkiv-network/sdk"
 import { braga } from "@arkiv-network/sdk/chains"
-import { privateKeyToAccount } from "viem/accounts"
+import { privateKeyToAccount } from "@arkiv-network/sdk/accounts"
 import type { WalletArkivClient } from "./client"
 
 export function getRelayerClient(): WalletArkivClient {

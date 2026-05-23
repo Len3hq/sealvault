@@ -1,5 +1,5 @@
 import { eq } from "@arkiv-network/sdk/query"
-import { PROJECT_ATTRIBUTE, ENTITY_TYPES } from "../constants"
+import { PROJECT_ATTRIBUTE, ENTITY_TYPES, RELAYER_ADDRESS } from "../constants"
 import type { PublicClientType } from "../client"
 import type { VaultCategory } from "../constants"
 
@@ -25,6 +25,7 @@ export async function queryVaultItems(
   return client
     .buildQuery()
     .where(predicates)
+    .createdBy(RELAYER_ADDRESS)
     .withPayload(false) // payload is encrypted — only fetch on demand
     .withAttributes(true)
     .withMetadata(true)

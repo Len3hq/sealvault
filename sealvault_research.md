@@ -188,7 +188,7 @@ When the grantee visits `/view/[token]`, the app derives the same grant key from
 
 ## Arkiv Entity Schema (4 Types)
 
-Every entity carries `PROJECT_ATTRIBUTE = "sealvault"` and an `owner` attribute set to the user's wallet address. All entity writes go through the server-side relayer wallet (so `$creator` is the relayer, not the user). Queries scope data to the correct user via `eq("owner", ownerAddress)` instead of `.createdBy()`.
+Every entity carries `PROJECT_ATTRIBUTE = "sealvault"` and an `owner` attribute set to the user's wallet address. All entity writes go through the server-side relayer wallet (so `$creator` is the relayer, not the user). Queries scope data to the correct user via `eq("owner", ownerAddress)` **and** `.createdBy(RELAYER_ADDRESS)` — the `owner` attribute identifies the user, and `.createdBy()` provides a tamper-proof guarantee that only the trusted relayer created the entity (rejecting any injection attempts from other wallets).
 
 ### Type 1 — Vault Item (10-year TTL)
 
@@ -357,23 +357,26 @@ const { createdEntities } = await relayerClient.mutateEntities({
 // Two grants in one transaction — createdEntities[0] and [1] are the entity keys
 ```
 
-### 3. Owner Attribute Scoping on All Queries
+### 3. Owner Attribute + `.createdBy()` on All Queries
 
-Because the relayer wallet is `$creator` for all entities, queries scope to the correct user via an explicit `owner` attribute instead of `.createdBy()`.
+Because the relayer wallet is `$creator` for all entities, queries use two complementary guards: the `owner` attribute identifies the user, and `.createdBy(RELAYER_ADDRESS)` provides an immutable tamper-proof guarantee that the entity actually came from the trusted relayer. The `owner` attribute alone is not sufficient — any wallet could create an entity with `{ owner: "0xVictim" }` and have it show up in the victim's queries. `.createdBy()` closes that injection window.
 
 ```typescript
-// Always filter by owner to prevent data leakage between users
+// owner scopes to the user; createdBy rejects anything not from the trusted relayer
 const myVaultItems = await publicClient
   .buildQuery()
   .where([
     eq("project", PROJECT_ATTRIBUTE),
     eq("type",    "vault_item"),
-    eq("owner",   ownerAddress),   // ← set at entity creation; filters to this user's data
+    eq("owner",   ownerAddress),
   ])
+  .createdBy(RELAYER_ADDRESS)   // ← tamper-proof: $creator is immutable
   .withAttributes(true)
   .orderBy("created_at", "number", "desc")
   .fetch()
 ```
+
+`RELAYER_ADDRESS` is exposed as `NEXT_PUBLIC_RELAYER_ADDRESS` — the public wallet address derived from `RELAYER_PRIVATE_KEY`. It is not a secret.
 
 ### 4. Live Expiry Events (Real-time revocation notifications)
 
@@ -739,7 +742,7 @@ GRANTEE (any person, any browser, zero crypto knowledge)
 | Arkiv | `@arkiv-network/sdk` | Required — entities, queries, events |
 | **Gas relayer** | **`RELAYER_PRIVATE_KEY` + Arkiv SDK server client** | Pre-funded server wallet pays all gas; users need zero GLM. Arkiv SDK's `createWalletClient` formats golembase transactions (plain viem is rejected by Braga) |
 | Off-chain storage | **IPFS + Pinata** | Encrypted bytes stored on IPFS; only CID (~59 chars) goes on-chain — keeps GLM cost minimal |
-| Relay auth | `personal_sign` + `recoverMessageAddress` | Login signature reused as API token — no extra prompts |
+| Relay auth | `personal_sign` + `recoverMessageAddress` | Login signature reused as API token — no extra prompts. `NEXT_PUBLIC_RELAYER_ADDRESS` used in all queries for injection protection via `.createdBy()` |
 | Encryption | Web Crypto API (native) | No deps, runs in browser, AES-256-GCM + HKDF |
 | Payload validation | Zod | Schema validation on all entity payload parses |
 | Agent | Claude via Anthropic SDK | Streaming tool use (4 read + 5 write tools) |
@@ -757,7 +760,7 @@ Given Arkiv Integration is 40% of the score, get entities right first.
 ### Phase 1 — Arkiv Entity Foundation ✅
 - [x] Define `PROJECT_ATTRIBUTE = "sealvault"`
 - [x] Implement all 4 entity schemas with correct attributes (including `owner`)
-- [x] Scope all queries with `eq("owner", ownerAddress)` instead of `.createdBy()`
+- [x] Scope all queries with `eq("owner", ownerAddress)` + `.createdBy(RELAYER_ADDRESS)`
 - [x] Test entity lifecycle deletion (delete item → delete grants)
 - [x] Wire up `subscribeEntityEvents` for expiry/deletion
 
@@ -795,7 +798,11 @@ Given Arkiv Integration is 40% of the score, get entities right first.
 - [x] Diagnose "non-golembase transaction" error: Braga (GolemBase L3) rejects plain viem transactions; only Arkiv SDK's `createWalletClient` produces valid golembase transactions
 - [x] Remove fund-wallet route (native token transfers also rejected on Braga)
 - [x] Build server-side relay: `/api/relay/{vault-item,grant,contact}` — all Arkiv writes go through a pre-funded `RELAYER_PRIVATE_KEY` wallet using Arkiv SDK
-- [x] Add `owner` attribute to all entity schemas; switch all queries from `.createdBy()` to `eq("owner", ownerAddress)`
+- [x] Add `owner` attribute to all entity schemas for user scoping
+- [x] Add `.createdBy(RELAYER_ADDRESS)` to all queries — prevents entity injection from other wallets
+- [x] Expose `NEXT_PUBLIC_RELAYER_ADDRESS` env var (public wallet address derived from `RELAYER_PRIVATE_KEY`)
+- [x] Fix relay route bodies: runtime Zod validation on all POST/DELETE/PATCH/PUT handlers
+- [x] Fix `privateKeyToAccount` import: `viem/accounts` → `@arkiv-network/sdk/accounts`
 - [x] Implement relay auth: `personal_sign` signature from login reused as API token (x-owner-address + x-signature headers, verified via `recoverMessageAddress`)
 - [x] Fix `DEFAULT_TX_PARAMS` gasPrice: `0n` → `1_000n` (Braga EIP-1559 baseFee = 251 wei)
 - [x] Update all hooks and components to use relay instead of direct wallet client calls

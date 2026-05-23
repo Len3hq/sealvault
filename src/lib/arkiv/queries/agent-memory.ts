@@ -1,5 +1,5 @@
 import { eq, gt } from "@arkiv-network/sdk/query"
-import { PROJECT_ATTRIBUTE, ENTITY_TYPES, ENTITY_SUBTYPES } from "../constants"
+import { PROJECT_ATTRIBUTE, ENTITY_TYPES, ENTITY_SUBTYPES, RELAYER_ADDRESS } from "../constants"
 import type { PublicClientType } from "../client"
 import type { VaultCategory } from "../constants"
 import type { Entity } from "@arkiv-network/sdk"
@@ -19,6 +19,7 @@ export async function queryContacts(
       eq("subtype", ENTITY_SUBTYPES.CONTACT),
       eq("owner",   ownerAddress),
     ])
+    .createdBy(RELAYER_ADDRESS)
     .withPayload(true)
     .withAttributes(true)
     .orderBy("added_at", "number", "desc")
@@ -59,6 +60,7 @@ export async function queryGrantHistory(
   return client
     .buildQuery()
     .where([...predicates, eq("owner", ownerAddress)])
+    .createdBy(RELAYER_ADDRESS)
     .withPayload(true)
     .withAttributes(true)
     .orderBy("granted_at", "number", "desc")
@@ -80,6 +82,7 @@ export async function queryGrantRecordByGrantEntity(
       eq("owner",        ownerAddress),
       eq("grant_entity", grantEntityKey),
     ])
+    .createdBy(RELAYER_ADDRESS)
     .withPayload(true)
     .withAttributes(true)
     .limit(1)
