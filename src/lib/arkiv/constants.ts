@@ -2,7 +2,7 @@ import { ExpirationTime } from "@arkiv-network/sdk/utils"
 
 export { ExpirationTime }
 
-export const PROJECT_ATTRIBUTE = "sealvault" as const
+export const PROJECT_ATTRIBUTE = "sealvault-4f8k" as const
 
 // Public address of the relayer wallet — all entities are created by this wallet.
 // Adding .createdBy(RELAYER_ADDRESS) to queries rejects injected entities from other wallets.

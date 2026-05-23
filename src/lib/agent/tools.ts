@@ -84,6 +84,8 @@ export function buildReadTools(ownerAddress: string) {
           return {
             grantEntityKey: String(e.key),
             parentVaultItemKey: getAttributeValue(a, "parent_key"),
+            granteeName: getAttributeValue(a, "grantee_name"),
+            label: getAttributeValue(a, "label"),
             purpose: getAttributeValue(a, "purpose"),
             grantedBy: getAttributeValue(a, "granted_by"),
             expiresAt: getAttributeValue(a, "expires_at"),
