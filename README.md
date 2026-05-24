@@ -6,6 +6,7 @@ SealVault is a crypto-native document vault built on Arkiv — where your files 
 
 🌐 **Live:** [sealvault.len3.xyz](https://sealvault.len3.xyz/)
 📦 **Repo:** [github.com/Len3hq/sealvault](https://github.com/Len3hq/sealvault)
+📹 **Demo:** [Youtube](https://youtu.be/r0kqDukAxqM?si=hvgxhHmrEqxAnlh_)
 
 ## Why SealVault?
 
